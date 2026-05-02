@@ -23,9 +23,34 @@ SYMBOLS = [
      'FARTCOINUSDT', '1000PEPEUSDT',
 ]
 
+# ============================================================
+# STATE PER COIN
+# ============================================================
+# pending[coin] = {
+#   'type'         : "Long" | "Short"   -- arah BOS H1
+#   'df_h1'        : DataFrame          -- snapshot H1 saat BOS (freeze)
+#   'fvg_list'     : list               -- semua FVG internal BOS H1
+#   'fvg_idx'      : int                -- FVG aktif yang sedang dipantau
+#   'fvg_touch_ts' : int                -- ts candle H1 pertama kali wick FVG
+#   'tp'           : float              -- target profit
+#   'bos_ts'       : int                -- timestamp BOS H1
+#   'phase'        : str                -- phase aktif
+#
+#   Phase urutan:
+#   "WAIT_FVG_TOUCH"  → tunggu FVG H1 diwick
+#   "WAIT_IDM_TOUCH"  → tunggu high/low IDM M5 disentuh harga
+#   "WAIT_BOS_BREAK"  → IDM tersentuh, freeze M5, tunggu break struktur
+#   "WAIT_MSS"        → BOS M5 terbentuk, IDM disentuh lagi, tunggu MSS
+#
+#   'm5_freeze_low'  : float  -- low snapshot M5 saat IDM tersentuh (untuk cek BOS break)
+#   'm5_freeze_high' : float  -- high snapshot M5 saat IDM tersentuh
+#   'm5_freeze_ts'   : int    -- ts saat M5 di-freeze
+#   'idm_list'       : list   -- IDM yang ditemukan di M5
+#   'idm_touched_val': float  -- nilai IDM yang terakhir disentuh
+# }
+
 pending          = {}
 active_positions = {}
-instrument_cache = {}
 
 
 # ============================================================
@@ -54,40 +79,6 @@ def get_data(symbol, interval, limit=200):
 
 
 # ============================================================
-# INSTRUMENT INFO — FIX #6: lot size & qty step per symbol
-# ============================================================
-
-def get_instrument_info(symbol):
-    if symbol in instrument_cache:
-        return instrument_cache[symbol]
-    try:
-        res = session.get_instruments_info(category=CATEGORY, symbol=symbol)
-        if res['retCode'] == 0:
-            info = res['result']['list'][0]
-            lot  = info['lotSizeFilter']
-            data = {
-                'min_qty'  : float(lot['minOrderQty']),
-                'qty_step' : float(lot['qtyStep']),
-                'tick_size': float(info['priceFilter']['tickSize']),
-            }
-            instrument_cache[symbol] = data
-            return data
-    except Exception as e:
-        print(f"⚠️ instrument_info {symbol}: {e}")
-    return {'min_qty': 0.01, 'qty_step': 0.01, 'tick_size': 0.0001}
-
-
-def round_qty(qty, step):
-    precision = len(str(step).rstrip('0').split('.')[-1]) if '.' in str(step) else 0
-    return round(int(qty / step) * step, precision)
-
-
-def round_price(price, tick):
-    precision = len(str(tick).rstrip('0').split('.')[-1]) if '.' in str(tick) else 0
-    return round(round(price / tick) * tick, precision)
-
-
-# ============================================================
 # FUNGSI SWING
 # ============================================================
 
@@ -105,14 +96,23 @@ def find_swings(df, left=2, right=2):
 
 
 # ============================================================
-# FUNGSI IDM — FIX #1 & #2
+# FUNGSI IDM — REPLAY KIRI KE KANAN
 # ============================================================
+
 
 def replay_m5(df, stype):
     """
     Replay candle M5 dari kiri ke kanan, state machine IDM.
-    FIX #1: Gunakan while loop supaya candle bisa di-reprocess saat transisi state.
-    FIX #2: Reset IDM Short tidak overwrite candidate_low (IDM level).
+
+    IDM Bearish (H1 Long):
+      SINGLE_MOVE : update kandidat A ke low lebih rendah terus
+      KONSOLIDASI : low > low A → tunggu break
+                    kalau break (low < low A) → TUNGGU_SENTUH, kandidat A TIDAK berubah
+      TUNGGU_SENTUH:
+        - low baru < low A → IDM baru, reset ke SINGLE_MOVE
+        - high >= high A   → IDM disentuh!
+
+    IDM Bullish (H1 Short): sebaliknya.
     """
     if len(df) < 3:
         return {'phase': 'WAIT_IDM', 'idm_level': None}
@@ -120,39 +120,42 @@ def replay_m5(df, stype):
     state          = 'SINGLE_MOVE'
     candidate_high = None
     candidate_low  = None
-    idm_start_idx  = 0
+    idm_start_idx  = 0  # index candle saat IDM terbentuk (masuk TUNGGU_SENTUH)
 
-    i = 0
-    while i < len(df) - 1:
+    for i in range(len(df) - 1):
         c = df.iloc[i]
 
         if stype == "Long":
 
             if state == 'SINGLE_MOVE':
                 if candidate_low is None or c['low'] <= candidate_low:
+                    # Low baru/sama → single move terus, update kandidat A
                     candidate_low  = c['low']
                     candidate_high = c['high']
-                    i += 1
                 else:
-                    # Tidak increment i — candle ini diproses ulang di KONSOLIDASI
+                    # Low lebih tinggi → masuk konsolidasi
                     state = 'KONSOLIDASI'
+                    # Proses ulang candle ini di state KONSOLIDASI
+                    i -= 1  # tidak bisa mundur di for loop, handle di bawah
+                    # Cukup pindah state, candle berikutnya akan diproses di KONSOLIDASI
 
             elif state == 'KONSOLIDASI':
                 if c['low'] < candidate_low:
-                    idm_high       = candidate_high
-                    candidate_low  = c['low']
+                    # Low A ditembus setelah konsolidasi → IDM selesai!
+                    idm_high      = candidate_high
+                    candidate_low = c['low']
                     candidate_high = idm_high
-                    idm_start_idx  = i
-                    state          = 'TUNGGU_SENTUH'
-                i += 1
+                    idm_start_idx = i  # simpan index saat IDM terbentuk
+                    state = 'TUNGGU_SENTUH'
+                # low >= candidate_low → masih konsolidasi
 
             elif state == 'TUNGGU_SENTUH':
                 if c['low'] < candidate_low:
                     candidate_low  = c['low']
                     candidate_high = c['high']
                     state          = 'SINGLE_MOVE'
-                    i += 1
                 elif c['high'] >= candidate_high:
+                    # High IDM disentuh! Freeze dari range IDM A saja
                     df_until = df.iloc[idm_start_idx:i+1]
                     return {
                         'phase'      : 'IDM_TOUCHED',
@@ -161,32 +164,35 @@ def replay_m5(df, stype):
                         'freeze_low' : df_until['low'].min(),
                         'freeze_ts'  : c['ts']
                     }
-                else:
-                    i += 1
 
-        else:  # Short
+        else:  # Short — IDM bullish
+            # SINGLE_MOVE  : update kandidat A ke high lebih tinggi
+            # KONSOLIDASI  : high < high A → tunggu break
+            #   kalau high ditembus → IDM selesai, candidate_high update ke breaker
+            #   candidate_low (low A) tetap sebagai level IDM
+            # TUNGGU_SENTUH: low baru < low A → IDM baru, reset
+            #                low <= candidate_low → IDM_TOUCHED
 
             if state == 'SINGLE_MOVE':
                 if candidate_high is None or c['high'] >= candidate_high:
                     candidate_high = c['high']
                     candidate_low  = c['low']
-                    i += 1
                 else:
-                    # Tidak increment i — candle ini diproses ulang di KONSOLIDASI
                     state = 'KONSOLIDASI'
 
             elif state == 'KONSOLIDASI':
                 if c['high'] > candidate_high:
+                    # High A ditembus → IDM selesai!
                     idm_low        = candidate_low
                     candidate_high = c['high']
-                    # FIX #2: Pertahankan IDM level, jangan overwrite
                     candidate_low  = idm_low
-                    idm_start_idx  = i
+                    idm_start_idx  = i  # simpan index saat IDM terbentuk
                     state          = 'TUNGGU_SENTUH'
-                i += 1
+                # high <= candidate_high → masih konsolidasi
 
             elif state == 'TUNGGU_SENTUH':
                 if c['low'] <= candidate_low:
+                    # Low IDM disentuh! Freeze dari range IDM A saja
                     df_until = df.iloc[idm_start_idx:i+1]
                     return {
                         'phase'      : 'IDM_TOUCHED',
@@ -196,21 +202,22 @@ def replay_m5(df, stype):
                         'freeze_ts'  : c['ts']
                     }
                 elif c['high'] > candidate_high:
-                    # FIX #2: Reset dengan high baru, low juga update
                     candidate_high = c['high']
                     candidate_low  = c['low']
-                    state          = 'SINGLE_MOVE'
-                i += 1
+                    state          = 'SINGLE_MOVE'  
 
+    # Long:  idm_level = high A (sentuh dari bawah ke atas)
+    # Short: idm_level = low A  (sentuh dari atas ke bawah)
     idm_level = candidate_high if stype == "Long" else candidate_low
     return {'phase': 'WAIT_IDM', 'idm_level': idm_level, 'state': state}
 
 
 # ============================================================
-# FUNGSI FVG H1 — FIX #5: freshness check pakai wick
+# FUNGSI FVG H1
 # ============================================================
 
 def get_internal_gaps(df, stype, start_idx):
+    """Cari semua FVG fresh dalam range internal BOS H1."""
     gaps    = []
     end_idx = len(df) - 2
     for i in range(end_idx, start_idx + 2, -1):
@@ -222,10 +229,8 @@ def get_internal_gaps(df, stype, start_idx):
         if gap:
             is_fresh = True
             for j in range(i + 1, len(df)):
-                # FIX #5: Pakai wick bukan close
-                if stype == "Long" and df['low'].iloc[j] < gap['bottom']:
-                    is_fresh = False; break
-                if stype == "Short" and df['high'].iloc[j] > gap['top']:
+                if (stype == "Long"  and df['close'].iloc[j] < gap['top']) or \
+                   (stype == "Short" and df['close'].iloc[j] > gap['bottom']):
                     is_fresh = False; break
             if is_fresh:
                 gaps.append(gap)
@@ -240,8 +245,10 @@ def body_breaks_fvg(candle, fvg, stype):
     body_top    = max(candle['open'], candle['close'])
     body_bottom = min(candle['open'], candle['close'])
     if stype == "Long":
+        # Body masuk ke bawah bottom FVG
         return body_bottom < fvg['bottom'] and body_top > fvg['bottom']
     else:
+        # Body masuk ke atas top FVG
         return body_top > fvg['top'] and body_bottom < fvg['top']
 
 
@@ -249,18 +256,19 @@ def wick_only_touch(candle, fvg, stype):
     body_top    = max(candle['open'], candle['close'])
     body_bottom = min(candle['open'], candle['close'])
     if stype == "Long":
+        # Wick bawah masuk zona, tapi body close di atas bottom FVG
         return candle['low'] <= fvg['bottom'] and body_bottom >= fvg['bottom']
     else:
+        # Wick atas masuk zona, tapi body close di bawah top FVG
         return candle['high'] >= fvg['top'] and body_top <= fvg['top']
 
 
 # ============================================================
-# FUNGSI ORDER — FIX #6: round qty & price ke spec Bybit
+# FUNGSI ORDER
 # ============================================================
 
 def place_limit_order(symbol, side, entry, sl, tp):
     try:
-        info     = get_instrument_info(symbol)
         res_bal  = session.get_wallet_balance(accountType="UNIFIED", coin="USDT")
         balance  = float(res_bal['result']['list'][0]['totalEquity'])
         risk_usd = balance * 0.01
@@ -268,22 +276,12 @@ def place_limit_order(symbol, side, entry, sl, tp):
         if dist == 0:
             print(f"⚠️ {symbol}: dist entry-SL = 0, skip.")
             return False
-
-        raw_qty = risk_usd / dist
-        qty     = round_qty(raw_qty, info['qty_step'])
-        if qty < info['min_qty']:
-            print(f"⚠️ {symbol}: Qty {qty} < minOrderQty {info['min_qty']}, skip.")
-            return False
-
-        entry_r = round_price(entry, info['tick_size'])
-        sl_r    = round_price(sl,    info['tick_size'])
-        tp_r    = round_price(tp,    info['tick_size'])
-
+        qty = round(risk_usd / dist, 2)
         print(f"   Balance:{balance:.2f} Risk:{risk_usd:.2f} Dist:{dist} Qty:{qty}")
         res = session.place_order(
             category=CATEGORY, symbol=symbol, side=side,
-            orderType="Limit", qty=str(qty), price=str(entry_r),
-            stopLoss=str(sl_r), takeProfit=str(tp_r),
+            orderType="Limit", qty=str(qty), price=str(entry),
+            stopLoss=str(sl), takeProfit=str(tp),
             timeInForce="GTC"
         )
         if res['retCode'] == 0:
@@ -319,7 +317,7 @@ def move_sl(symbol, new_sl):
 
 
 # ============================================================
-# TRAILING SL
+# TRAILING SL — pindah ke +1% saat untung 2%
 # ============================================================
 
 def check_trailing_sl(coin):
@@ -354,19 +352,17 @@ def check_trailing_sl(coin):
 
 
 # ============================================================
-# CEK TREN H1 BERUBAH — FIX #3: logic diperbaiki
+# CEK TREN H1 BERUBAH
 # ============================================================
 
 def h1_trend_broken(curr_h1, setup, sh_h1, sl_h1):
     """
-    FIX #3: Setup batal jika harga melewati TP (swing terlampaui searah BOS).
-    - Long  : harga tembus ATAS swing high → TP sudah kena, tidak ada pullback lagi
-    - Short : harga tembus BAWAH swing low → TP sudah kena, tidak ada pullback lagi
-    Sebelumnya logic terbalik: membatalkan setup valid, membiarkan setup gagal jalan.
+    Setup batal jika tren H1 lanjut melampaui TP
+    (berarti tidak ada pullback, harga terus searah)
     """
-    if setup['type'] == "Long" and sh_h1 and curr_h1['close'] > sh_h1[-1]['val']:
+    if setup['type'] == "Long"  and sl_h1 and curr_h1['close'] < sl_h1[-1]['val']:
         return True
-    if setup['type'] == "Short" and sl_h1 and curr_h1['close'] < sl_h1[-1]['val']:
+    if setup['type'] == "Short" and sh_h1 and curr_h1['close'] > sh_h1[-1]['val']:
         return True
     return False
 
@@ -389,10 +385,11 @@ def test_connection():
 
 
 # ============================================================
-# REPLAY H1
+# REPLAY H1 — reconstruct state saat startup/restart
 # ============================================================
 
 def replay_h1(coin, df_h1):
+    """Baca candle H1 kiri ke kanan untuk rebuild state setelah restart."""
     sh_h1, sl_h1 = find_swings(df_h1, left=8, right=8)
     if not sh_h1 or not sl_h1:
         return None
@@ -414,8 +411,8 @@ def replay_h1(coin, df_h1):
     since_bos = df_snap.iloc[ref_idx:]
     tp_val    = since_bos['high'].max() if stype == "Long" else since_bos['low'].min()
     bos_ts    = df_snap['ts'].iloc[ref_idx]
-    swing_ts  = sh_h1[-1]['ts'] if stype == "Long" else sl_h1[-1]['ts']
 
+    swing_ts = sh_h1[-1]['ts'] if stype == "Long" else sl_h1[-1]['ts']
     state = {
         'type': stype, 'df_h1': df_snap,
         'fvg_list': gaps, 'fvg_idx': 0,
@@ -469,6 +466,7 @@ def replay_h1(coin, df_h1):
 
 
 def reconstruct_state():
+    
     for coin in SYMBOLS:
         try:
             time.sleep(1)
@@ -477,17 +475,18 @@ def reconstruct_state():
             state = replay_h1(coin, df_h1)
             if state:
                 pending[coin] = state
+                
         except Exception as e:
             print(f"⚠️ Replay {coin}: {e}")
     print(f"🔍 Selesai. {len(pending)} coin dimonitor.\n")
 
 
 # ============================================================
-# CORE LOOP — FIX #4: WAIT_MSS kini tercapai dengan benar
+# CORE LOOP
 # ============================================================
 
 def run_bot():
-    print("🚀 SNIPER V4 | SMC FULL LOGIC | FIXED")
+    print("🚀 SNIPER V4 | SMC FULL LOGIC | ACTIVE")
     if not test_connection():
         print("⛔ Tidak bisa konek ke Bybit.")
         return
@@ -495,6 +494,7 @@ def run_bot():
 
     while True:
 
+        # Trailing SL
         for coin in list(active_positions.keys()):
             try:
                 check_trailing_sl(coin)
@@ -503,7 +503,7 @@ def run_bot():
 
         for coin in SYMBOLS:
             try:
-                time.sleep(2)
+                time.sleep(2)  # Hindari rate limit
 
                 df_h1_live = get_data(coin, "60", limit=100)
                 if df_h1_live is None: continue
@@ -514,6 +514,8 @@ def run_bot():
                 curr_h1   = df_h1_live.iloc[-1]
                 closed_h1 = df_h1_live.iloc[-2]
 
+                
+
                 # ── PROSES SETUP PENDING ──────────────────────────────
                 if coin in pending:
                     setup    = pending[coin]
@@ -521,10 +523,12 @@ def run_bot():
                     fvg_list = setup['fvg_list']
                     fvg_idx  = setup['fvg_idx']
 
+                    # Cek tren H1 berubah → batal semua
                     if h1_trend_broken(curr_h1, setup, sh_h1, sl_h1):
-                        print(f"🔄 {coin}: Harga melewati TP tanpa pullback. Setup batal.")
+                        print(f"🔄 {coin}: Tren H1 berubah. Batal.")
                         del pending[coin]; continue
 
+                    # Semua FVG habis
                     if fvg_idx >= len(fvg_list):
                         print(f"🗑️ {coin}: Semua FVG habis.")
                         del pending[coin]; continue
@@ -534,6 +538,7 @@ def run_bot():
                     # ── PHASE 1: TUNGGU FVG H1 DIWICK ────────────────
                     if setup['phase'] == "WAIT_FVG_TOUCH":
                         if not price_in_fvg(closed_h1['high'], closed_h1['low'], active_fvg):
+                            # Cek TP kena duluan
                             if stype == "Long" and curr_h1['close'] >= setup['tp']:
                                 print(f"🗑️ {coin}: TP kena sebelum FVG."); del pending[coin]
                             elif stype == "Short" and curr_h1['close'] <= setup['tp']:
@@ -546,12 +551,14 @@ def run_bot():
                             continue
 
                         if wick_only_touch(closed_h1, active_fvg, stype):
-                            print(f"✅ {coin}: FVG {fvg_idx+1} diwick. Masuk M5.")
+                            print(f"✅ {coin}: FVG {fvg_idx+1} diwick. Freeze H1, masuk M5.")
                             pending[coin]['phase']        = "WAIT_IDM_TOUCH"
                             pending[coin]['fvg_touch_ts'] = closed_h1['ts']
                         continue
 
                     # ── AMBIL DATA M5 ─────────────────────────────────
+                    # Anchor M5 dari swing H1 (high untuk Long, low untuk Short)
+                    # supaya tidak salah baca MSS dari data sebelum retrace
                     time.sleep(1)
                     df_m5_live = get_data(coin, "5", limit=200)
                     if df_m5_live is None: continue
@@ -561,16 +568,18 @@ def run_bot():
                     if len(df_m5) < 5:
                         df_m5 = df_m5_live.tail(80).reset_index(drop=True)
 
-                    curr_m5 = df_m5.iloc[-1]
+                    curr_m5   = df_m5.iloc[-1]
+                    closed_m5 = df_m5.iloc[-2] if len(df_m5) >= 2 else curr_m5
 
                     # ── PHASE 2: TUNGGU IDM TERSENTUH ────────────────
+                    # Replay M5 kiri ke kanan untuk cari IDM terkini.
                     if setup['phase'] == "WAIT_IDM_TOUCH":
                         m5_state = replay_m5(df_m5, stype)
 
                         if m5_state['phase'] == 'WAIT_IDM':
                             idm_level = m5_state.get('idm_level')
                             if idm_level:
-                                print(f"⏳ {coin}: IDM @ {idm_level} | Menunggu sentuhan...")
+                                print(f"⏳ {coin}: IDM terbentuk @ {idm_level} | Menunggu disentuh...")
                             else:
                                 print(f"⏳ {coin}: Belum ada IDM.")
                             if stype == "Long" and curr_m5['close'] >= setup['tp']:
@@ -579,14 +588,18 @@ def run_bot():
                                 print(f"🗑️ {coin}: TP kena tanpa IDM."); del pending[coin]
                             continue
 
+                        # IDM tersentuh
                         idm_level   = m5_state['idm_level']
                         freeze_high = m5_state['freeze_high']
                         freeze_low  = m5_state['freeze_low']
                         freeze_ts   = m5_state['freeze_ts']
 
+                        target_bos = freeze_low  if stype == "Long" else freeze_high
+                        target_mss = freeze_high if stype == "Long" else freeze_low
+
                         print(f"💧 {coin}: IDM tersentuh @ {idm_level}")
-                        print(f"   → Target BOS M5 : {freeze_low if stype=='Long' else freeze_high}")
-                        print(f"   → Target MSS    : {freeze_high if stype=='Long' else freeze_low}")
+                        print(f"   → Target BOS M5 : {target_bos} ({'break bawah' if stype == 'Long' else 'break atas'})")
+                        print(f"   → Target MSS    : {target_mss} ({'break atas' if stype == 'Long' else 'break bawah'})")
 
                         pending[coin]['phase']           = "WAIT_BOS_BREAK"
                         pending[coin]['idm_touched_val'] = idm_level
@@ -596,44 +609,45 @@ def run_bot():
                         continue
 
                     # ── PHASE 3: TUNGGU BOS BREAK ─────────────────────
-                    # FIX #4: Setelah BOS M5 → masuk WAIT_MSS (bukan balik WAIT_IDM_TOUCH)
+                    # IDM sudah disentuh, M5 di-freeze.
+                    # Long  → tunggu break ke BAWAH (BOS bearish M5)
+                    # Short → tunggu break ke ATAS  (BOS bullish M5)
                     if setup['phase'] == "WAIT_BOS_BREAK":
                         freeze_low  = setup['m5_freeze_low']
                         freeze_high = setup['m5_freeze_high']
                         freeze_ts   = setup['m5_freeze_ts']
 
+                        # Hanya cek candle setelah freeze
                         df_after = df_m5[df_m5['ts'] > freeze_ts]
                         if df_after.empty:
                             continue
 
-                        bos_broken    = False
-                        bos_candle_ts = None
-
+                        bos_broken = False
                         for _, c in df_after.iterrows():
                             if stype == "Long" and c['close'] < freeze_low:
-                                bos_broken    = True
-                                bos_candle_ts = c['ts']
-                                print(f"📉 {coin}: BOS Bearish M5 @ {c['close']}. Masuk WAIT_MSS.")
+                                # BOS bearish M5 terbentuk
+                                bos_broken = True
+                                print(f"📉 {coin}: BOS Bearish M5 @ {c['close']}. Cari IDM baru.")
                                 break
                             elif stype == "Short" and c['close'] > freeze_high:
-                                bos_broken    = True
-                                bos_candle_ts = c['ts']
-                                print(f"📈 {coin}: BOS Bullish M5 @ {c['close']}. Masuk WAIT_MSS.")
+                                # BOS bullish M5 terbentuk
+                                bos_broken = True
+                                print(f"📈 {coin}: BOS Bullish M5 @ {c['close']}. Cari IDM baru.")
                                 break
 
                         if bos_broken:
-                            # FIX #4: Set WAIT_MSS, update freeze range dari zona BOS baru
-                            df_after_bos    = df_m5[df_m5['ts'] > freeze_ts]
-                            new_freeze_high = df_after_bos['high'].max() if not df_after_bos.empty else freeze_high
-                            new_freeze_low  = df_after_bos['low'].min()  if not df_after_bos.empty else freeze_low
-
-                            pending[coin]['phase']           = "WAIT_MSS"
-                            pending[coin]['swing_ts']        = bos_candle_ts
-                            pending[coin]['m5_freeze_high']  = new_freeze_high
-                            pending[coin]['m5_freeze_low']   = new_freeze_low
-                            pending[coin]['m5_freeze_ts']    = bos_candle_ts
+                            # BOS M5 terbentuk → update anchor M5 ke swing dari BOS ini
+                            # Long:  BOS bearish M5 → anchor = swing HIGH sebelum break bawah
+                            # Short: BOS bullish M5 → anchor = swing LOW sebelum break atas
+                            # Gunakan ts candle BOS sebagai anchor baru untuk cari IDM
+                            pending[coin]['swing_ts']       = c['ts']
+                            pending[coin]['phase']          = "WAIT_IDM_TOUCH"
+                            pending[coin]['m5_freeze_high'] = None
+                            pending[coin]['m5_freeze_low']  = None
+                            pending[coin]['m5_freeze_ts']   = None
                             pending[coin]['idm_touched_val'] = None
                         else:
+                            # Cek apakah TP kena (setup gagal)
                             if stype == "Long" and curr_m5['close'] >= setup['tp']:
                                 print(f"🗑️ {coin}: TP kena tanpa BOS M5."); del pending[coin]
                             elif stype == "Short" and curr_m5['close'] <= setup['tp']:
@@ -641,6 +655,10 @@ def run_bot():
                         continue
 
                     # ── PHASE 4: TUNGGU MSS ───────────────────────────
+                    # Setelah BOS M5 terbentuk, IDM baru ditemukan dan disentuh lagi.
+                    # Sekarang tunggu MSS:
+                    # Long  → break ATAS (bullish) patahkan BOS bearish M5
+                    # Short → break BAWAH (bearish) patahkan BOS bullish M5
                     if setup['phase'] == "WAIT_MSS":
                         freeze_low  = setup['m5_freeze_low']
                         freeze_high = setup['m5_freeze_high']
@@ -650,30 +668,40 @@ def run_bot():
                         if df_after.empty:
                             continue
 
-                        mss_candle   = None
-                        reset_to_idm = False
+                        mss_candle    = None
+                        reset_to_idm  = False
 
                         for _, c in df_after.iterrows():
                             if stype == "Long":
                                 if c['close'] > freeze_high:
-                                    mss_candle = c; break
+                                    # MSS bullish confirmed
+                                    mss_candle = c
+                                    break
                                 elif c['close'] < freeze_low:
+                                    # Malah break ke bawah → BOS baru, balik cari IDM
                                     reset_to_idm = True
                                     print(f"🔄 {coin}: Break bawah lagi. Cari IDM baru.")
-                                    pending[coin].update({
-                                        'swing_ts': c['ts'], 'phase': "WAIT_IDM_TOUCH",
-                                        'm5_freeze_high': None, 'm5_freeze_low': None, 'm5_freeze_ts': None
-                                    }); break
-                            else:
+                                    pending[coin]['swing_ts']       = c['ts']
+                                    pending[coin]['phase']          = "WAIT_IDM_TOUCH"
+                                    pending[coin]['m5_freeze_high'] = None
+                                    pending[coin]['m5_freeze_low']  = None
+                                    pending[coin]['m5_freeze_ts']   = None
+                                    break
+                            else:  # Short
                                 if c['close'] < freeze_low:
-                                    mss_candle = c; break
+                                    # MSS bearish confirmed
+                                    mss_candle = c
+                                    break
                                 elif c['close'] > freeze_high:
+                                    # Malah break ke atas → BOS baru, balik cari IDM
                                     reset_to_idm = True
                                     print(f"🔄 {coin}: Break atas lagi. Cari IDM baru.")
-                                    pending[coin].update({
-                                        'swing_ts': c['ts'], 'phase': "WAIT_IDM_TOUCH",
-                                        'm5_freeze_high': None, 'm5_freeze_low': None, 'm5_freeze_ts': None
-                                    }); break
+                                    pending[coin]['swing_ts']       = c['ts']
+                                    pending[coin]['phase']          = "WAIT_IDM_TOUCH"
+                                    pending[coin]['m5_freeze_high'] = None
+                                    pending[coin]['m5_freeze_low']  = None
+                                    pending[coin]['m5_freeze_ts']   = None
+                                    break
 
                         if reset_to_idm or mss_candle is None:
                             if not reset_to_idm:
@@ -683,24 +711,26 @@ def run_bot():
                                     print(f"🗑️ {coin}: TP kena tanpa MSS."); del pending[coin]
                             continue
 
-                        # MSS confirmed — cek zona FVG H1
-                        entry_fvg   = None
+                        # MSS confirmed — cek apakah candle MSS di satuan harga FVG H1 mana
+                        entry_fvg = None
                         entry_price = None
                         for fvg in fvg_list:
                             if price_in_fvg(mss_candle['high'], mss_candle['low'], fvg):
                                 entry_fvg   = fvg
+                                # Long → entry top FVG | Short → entry bottom FVG
                                 entry_price = fvg['top'] if stype == "Long" else fvg['bottom']
                                 break
 
                         if entry_fvg is None:
-                            print(f"⏳ {coin}: MSS di luar FVG H1. Cari IDM lagi.")
-                            pending[coin].update({
-                                'phase': "WAIT_IDM_TOUCH",
-                                'm5_freeze_high': None, 'm5_freeze_low': None, 'm5_freeze_ts': None
-                            })
+                            print(f"⏳ {coin}: MSS terjadi tapi tidak di zona FVG H1. Cari IDM lagi.")
+                            pending[coin]['phase']          = "WAIT_IDM_TOUCH"
+                            pending[coin]['m5_freeze_high'] = None
+                            pending[coin]['m5_freeze_low']  = None
+                            pending[coin]['m5_freeze_ts']   = None
                             continue
 
-                        sl_price   = mss_candle['low'] if stype == "Long" else mss_candle['high']
+                        # SL di ujung candle MSS
+                        sl_price  = mss_candle['low'] if stype == "Long" else mss_candle['high']
                         side_order = "Buy" if stype == "Long" else "Sell"
 
                         print(f"🎯 {coin}: {side_order} @ {entry_price} | SL {sl_price} | TP {setup['tp']}")
@@ -732,7 +762,10 @@ def run_bot():
 
                 since_bos = df_h1_snap.iloc[ref_idx:]
                 tp_val    = since_bos['high'].max() if stype == "Long" else since_bos['low'].min()
-                swing_ts  = sh_h1[-1]['ts'] if stype == "Long" else sl_h1[-1]['ts']
+
+                # swing_ts = ts swing high (Long) atau swing low (Short) di H1
+                # Ini dipakai sebagai anchor tetap untuk ambil data M5
+                swing_ts = sh_h1[-1]['ts'] if stype == "Long" else sl_h1[-1]['ts']
 
                 pending[coin] = {
                     'type': stype, 'df_h1': df_h1_snap,
