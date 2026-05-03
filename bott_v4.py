@@ -13,13 +13,23 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 LOG_FILE = "bot.log"
 
 class _Tee:
-    """Redirect print() ke stdout DAN file sekaligus."""
+    """Redirect print() ke stdout DAN file sekaligus, dengan timestamp per baris."""
     def __init__(self):
-        self._out  = sys.__stdout__
-        self._file = open(LOG_FILE, 'a', buffering=1, encoding='utf-8')
+        self._out     = sys.__stdout__
+        self._file    = open(LOG_FILE, 'a', buffering=1, encoding='utf-8')
+        self._newline = True
     def write(self, msg):
-        self._out.write(msg)
-        self._file.write(msg)
+        import datetime
+        out = ''
+        for ch in msg:
+            if self._newline and ch != '\n':
+                out += (datetime.datetime.utcnow() + datetime.timedelta(hours=7)).strftime('[%H:%M:%S] ')
+                self._newline = False
+            out += ch
+            if ch == '\n':
+                self._newline = True
+        self._out.write(out)
+        self._file.write(out)
     def flush(self):
         self._out.flush()
         self._file.flush()
