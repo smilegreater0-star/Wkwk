@@ -3,6 +3,51 @@ import numpy as np
 from pybit.unified_trading import HTTP
 import os
 import time
+import sys
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
+
+# ============================================================
+# LOG SERVER — akses via https://xxx.up.railway.app/logs
+# ============================================================
+LOG_FILE = "bot.log"
+
+class _Tee:
+    """Redirect print() ke stdout DAN file sekaligus."""
+    def __init__(self):
+        self._out  = sys.__stdout__
+        self._file = open(LOG_FILE, 'a', buffering=1, encoding='utf-8')
+    def write(self, msg):
+        self._out.write(msg)
+        self._file.write(msg)
+    def flush(self):
+        self._out.flush()
+        self._file.flush()
+
+sys.stdout = _Tee()
+
+class _LogHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path != '/logs':
+            self.send_response(404); self.end_headers(); return
+        try:
+            data = open(LOG_FILE, 'rb').read()
+        except:
+            data = b''
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/plain; charset=utf-8')
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.end_headers()
+        self.wfile.write(data)
+    def log_message(self, *a):
+        pass  # silent, tidak spam console
+
+PORT = int(os.environ.get('PORT', 8080))
+threading.Thread(
+    target=lambda: HTTPServer(('0.0.0.0', PORT), _LogHandler).serve_forever(),
+    daemon=True
+).start()
+print(f"📡 Log server jalan di port {PORT} → /logs")
 
 # ============================================================
 # CONFIG
