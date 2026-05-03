@@ -38,10 +38,12 @@ sys.stdout = _Tee()
 
 class _LogHandler(BaseHTTPRequestHandler):
     def do_GET(self):
-        if self.path != '/logs':
+        if self.path not in ('/logs', '/logs?'):
             self.send_response(404); self.end_headers(); return
         try:
-            data = open(LOG_FILE, 'rb').read()
+            with open(LOG_FILE, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+            data = ''.join(lines[-200:]).encode('utf-8')
         except:
             data = b''
         self.send_response(200)
