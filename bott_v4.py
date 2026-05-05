@@ -311,6 +311,56 @@ def fvg_fully_broken(candle, fvg, stype):
 
 
 # ============================================================
+# BREAKER BLOCK — entry terbaik setelah MSS
+# ============================================================
+
+def find_breaker_block(df_m5, mss_ts, stype):
+    """
+    Cari Breaker Block M5: candle berlawanan arah terakhir sebelum MSS.
+
+    Long  → cari candle BEARISH terakhir sebelum MSS
+            Entry : high candle bearish tersebut
+            SL    : sedikit di bawah low candle bearish
+
+    Short → cari candle BULLISH terakhir sebelum MSS
+            Entry : low candle bullish tersebut
+            SL    : sedikit di atas high candle bullish
+
+    Kenapa lebih baik dari FVG H1 / MSS low:
+    - SL lebih dalam dari low MSS yang obvious (tidak kena stop hunt)
+    - Breaker block = zona yang pernah jadi resistance, setelah MSS
+      ditembus menjadi support → valid sebagai area entry pullback
+    - Dari backtesting: R:R 1:4.19 vs FVG H1 yang miss sama sekali
+    """
+    pre_mss = df_m5[df_m5['ts'] < mss_ts].tail(20).reset_index(drop=True)
+    if pre_mss.empty:
+        return None
+
+    for _, c in pre_mss.iloc[::-1].iterrows():
+        if stype == "Long":
+            if float(c['close']) < float(c['open']):   # candle bearish
+                body_size = abs(float(c['high']) - float(c['low']))
+                return {
+                    'entry'  : float(c['high']),
+                    'sl'     : round(float(c['low']) - body_size * 0.1, 8),
+                    'bb_high': float(c['high']),
+                    'bb_low' : float(c['low']),
+                    'ts'     : int(c['ts']),
+                }
+        else:
+            if float(c['close']) > float(c['open']):   # candle bullish
+                body_size = abs(float(c['high']) - float(c['low']))
+                return {
+                    'entry'  : float(c['low']),
+                    'sl'     : round(float(c['high']) + body_size * 0.1, 8),
+                    'bb_high': float(c['high']),
+                    'bb_low' : float(c['low']),
+                    'ts'     : int(c['ts']),
+                }
+    return None
+
+
+# ============================================================
 # FUNGSI ORDER
 # ============================================================
 
@@ -730,23 +780,42 @@ def run_bot():
                                     print(f"🗑️ {coin}: TP kena tanpa MSS."); del pending[coin]
                             continue
 
-                        # MSS confirmed — cek zona FVG H1
-                        entry_fvg = None; entry_price = None
-                        for fvg in fvg_list:
-                            if price_in_fvg(mss_candle['high'], mss_candle['low'], fvg):
-                                entry_fvg   = fvg
-                                entry_price = fvg['top'] if stype == "Long" else fvg['bottom']
-                                break
-
-                        if entry_fvg is None:
-                            print(f"⏳ {coin}: MSS di luar FVG H1. Cari IDM lagi.")
-                            pending[coin].update({
-                                'phase': "WAIT_IDM_TOUCH",
-                                'm5_freeze_high': None, 'm5_freeze_low': None, 'm5_freeze_ts': None
-                            }); continue
-
-                        sl_price   = mss_candle['low'] if stype == "Long" else mss_candle['high']
+                        # MSS confirmed — cari entry terbaik
+                        # Prioritas: Breaker Block > FVG H1
                         side_order = "Buy" if stype == "Long" else "Sell"
+
+                        bb = find_breaker_block(df_m5, mss_candle['ts'], stype)
+
+                        if bb is not None:
+                            # Gunakan Breaker Block sebagai entry
+                            entry_price = bb['entry']
+                            sl_price    = bb['sl']
+                            print(f"🧱 {coin}: Breaker Block @ {entry_price:.6f} | SL {sl_price:.6f}")
+                        else:
+                            # Fallback: FVG H1 jika Breaker Block tidak ditemukan
+                            entry_fvg = None; entry_price = None
+                            for fvg in fvg_list:
+                                if price_in_fvg(mss_candle['high'], mss_candle['low'], fvg):
+                                    entry_fvg   = fvg
+                                    entry_price = fvg['top'] if stype == "Long" else fvg['bottom']
+                                    break
+
+                            if entry_fvg is None:
+                                # Tidak ada BB dan tidak ada FVG → gunakan nfh/nfl sebagai RBS
+                                entry_price = freeze_high if stype == "Long" else freeze_low
+                                print(f"↩️ {coin}: No BB/FVG, fallback RBS @ {entry_price:.6f}")
+
+                            sl_price = mss_candle['low'] if stype == "Long" else mss_candle['high']
+                            print(f"🎯 {coin}: FVG/RBS entry @ {entry_price} | SL {sl_price}")
+
+                        if entry_price is None or sl_price is None:
+                            print(f"⚠️ {coin}: Tidak bisa tentukan entry, skip.")
+                            continue
+
+                        dist = abs(entry_price - sl_price)
+                        if dist == 0:
+                            print(f"⚠️ {coin}: Entry = SL, skip.")
+                            continue
 
                         print(f"🎯 {coin}: {side_order} @ {entry_price} | SL {sl_price} | TP {setup['tp']}")
 
