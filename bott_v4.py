@@ -166,19 +166,20 @@ def find_swings(df, left=2, right=2):
 # + freshness hanya dicek sampai candle BOS, bukan post-BOS
 # ============================================================
 
-def get_internal_gaps(df, stype, bos_idx):
+def get_internal_gaps(df, stype, bos_idx, lookback=60):
     """
-    FVG dicari hanya di antara swing point dan candle BOS (start_idx..bos_idx).
-    Freshness dicek hanya sampai bos_idx — candle setelah BOS belum terjadi
-    saat FVG dinilai, jadi tidak boleh ikut menginvalidasi FVG.
+    FVG dicari dalam range [bos_idx-lookback .. bos_idx].
+    Freshness dicek hanya sampai bos_idx — candle setelah BOS tidak ikut
+    menginvalidasi FVG (belum terjadi saat FVG dinilai).
 
-    BUG LAMA: FVG diambil dari seluruh history termasuk post-BOS,
-    sehingga FVG langsung dianggap broken oleh candle setelah BOS.
+    FIX: Dibatasi lookback=60 candle sebelum BOS agar dengan swing left/right
+    besar (20,20), range scan tidak terlalu panjang yang menyebabkan
+    banyak FVG valid gagal freshness check.
     """
     gaps = []
-    # Hanya scan candle di dalam range BOS (bukan seluruh df)
-    scan_end = bos_idx - 1
-    for i in range(scan_end, 2, -1):
+    scan_start = max(2, bos_idx - lookback)
+    scan_end   = bos_idx - 1
+    for i in range(scan_end, scan_start, -1):
         gap = None
         if stype == "Long" and df['high'].iloc[i-2] < df['low'].iloc[i]:
             gap = {"top": df['low'].iloc[i], "bottom": df['high'].iloc[i-2]}
@@ -186,7 +187,6 @@ def get_internal_gaps(df, stype, bos_idx):
             gap = {"top": df['low'].iloc[i-2], "bottom": df['high'].iloc[i]}
         if gap:
             is_fresh = True
-            # Freshness hanya dicek sampai bos_idx (bukan len(df))
             for j in range(i + 1, bos_idx + 1):
                 if stype == "Long" and df['low'].iloc[j] < gap['bottom']:
                     is_fresh = False; break
@@ -465,13 +465,17 @@ def check_trailing_sl(coin):
 
 def h1_trend_broken(curr_h1, setup, sh_h1, sl_h1):
     """
-    Setup batal jika harga sudah melewati TP (swing searah BOS terlampaui).
-    Long  : close > swing high terakhir → harga sudah lari, tidak ada pullback
-    Short : close < swing low terakhir  → harga sudah lari, tidak ada pullback
+    Setup batal HANYA jika harga sudah menembus tp_val yang disimpan saat BOS.
+    Menggunakan tp_val dari setup (fixed), bukan swing live yang bisa bergeser
+    setiap loop — terutama penting saat left/right swing besar (20,20) karena
+    swing high baru yang lebih rendah bisa terdeteksi dan salah membatalkan setup.
     """
-    if setup['type'] == "Long" and sh_h1 and curr_h1['close'] > sh_h1[-1]['val']:
+    tp = setup.get('tp')
+    if tp is None:
+        return False
+    if setup['type'] == "Long"  and curr_h1['close'] >= tp:
         return True
-    if setup['type'] == "Short" and sl_h1 and curr_h1['close'] < sl_h1[-1]['val']:
+    if setup['type'] == "Short" and curr_h1['close'] <= tp:
         return True
     return False
 
