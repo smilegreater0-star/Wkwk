@@ -597,7 +597,7 @@ def reconstruct_state():
 # ============================================================
 
 def run_bot():
-    print("BEGO MONEY CONCEPTS")
+    print("BEG MONEY CONCEPTS")
     if not test_connection():
         print("⛔ Tidak bisa konek ke Bybit.")
         return
