@@ -168,37 +168,66 @@ def find_swings(df, left=2, right=2):
 
 def get_internal_gaps(df, stype, bos_idx, lookback=60):
     """
-    FVG dicari dalam range [bos_idx-lookback .. bos_idx].
-    Freshness dicek hanya sampai bos_idx menggunakan CLOSE, bukan wick.
+    FVG dicari dalam dua range:
+    1. PRE-BOS  : [bos_idx-lookback .. bos_idx]
+       Imbalance yang terbentuk sebelum BOS — zona klasik SMC.
+    2. POST-BOS : [bos_idx .. len(df)-2]
+       Imbalance yang terbentuk saat impuls setelah BOS (e.g. 0.21668
+       di chart yang tidak terdeteksi sebelumnya). Harga sering pullback
+       ke zona ini sebelum lanjut ke arah BOS.
 
-    FIX FRESHNESS: Sebelumnya pakai low/high (wick) untuk cek apakah
-    FVG sudah disentuh → terlalu ketat. FVG yang di-wick tapi close-nya
-    masih di luar zona tetap dianggap valid oleh trader SMC.
-    Sekarang freshness hanya batal kalau CLOSE menembus zona FVG.
+    Freshness pakai CLOSE bukan wick:
+    FVG yang di-wick tapi close masih di luar zona = masih valid.
 
-    Contoh: FVG Long bottom=0.21600. Candle wick low=0.21590 tapi close=0.21700
-    → sebelumnya dianggap stale (salah), sekarang tetap fresh (benar).
+    Hasil diurutkan dari yang paling dekat harga (paling relevan):
+    Long  → top tertinggi dulu  (terdekat dari atas)
+    Short → bottom terendah dulu (terdekat dari bawah)
     """
     gaps = []
+
+    # ── 1. Pre-BOS FVG ───────────────────────────────────────
     scan_start = max(2, bos_idx - lookback)
-    scan_end   = bos_idx - 1
-    for i in range(scan_end, scan_start, -1):
+    for i in range(bos_idx - 1, scan_start, -1):
         gap = None
         if stype == "Long" and df['high'].iloc[i-2] < df['low'].iloc[i]:
-            gap = {"top": df['low'].iloc[i], "bottom": df['high'].iloc[i-2]}
+            gap = {"top": df['low'].iloc[i], "bottom": df['high'].iloc[i-2], "zone": "pre"}
         elif stype == "Short" and df['low'].iloc[i-2] > df['high'].iloc[i]:
-            gap = {"top": df['low'].iloc[i-2], "bottom": df['high'].iloc[i]}
+            gap = {"top": df['low'].iloc[i-2], "bottom": df['high'].iloc[i], "zone": "pre"}
         if gap:
             is_fresh = True
             for j in range(i + 1, bos_idx + 1):
-                # Freshness pakai CLOSE bukan wick (low/high)
-                # Wick yang masuk FVG tapi close di luar = FVG masih valid
                 if stype == "Long" and df['close'].iloc[j] < gap['bottom']:
                     is_fresh = False; break
                 if stype == "Short" and df['close'].iloc[j] > gap['top']:
                     is_fresh = False; break
             if is_fresh:
                 gaps.append(gap)
+
+    # ── 2. Post-BOS FVG (imbalance saat impuls BOS) ──────────
+    post_end = len(df) - 2
+    for i in range(bos_idx + 1, post_end):
+        if i + 1 >= len(df): continue
+        gap = None
+        if stype == "Long" and df['high'].iloc[i-1] < df['low'].iloc[i+1]:
+            gap = {"top": df['low'].iloc[i+1], "bottom": df['high'].iloc[i-1], "zone": "post"}
+        elif stype == "Short" and df['low'].iloc[i-1] > df['high'].iloc[i+1]:
+            gap = {"top": df['low'].iloc[i-1], "bottom": df['high'].iloc[i+1], "zone": "post"}
+        if gap:
+            is_fresh = True
+            for j in range(i + 2, len(df)):
+                if stype == "Long" and df['close'].iloc[j] < gap['bottom']:
+                    is_fresh = False; break
+                if stype == "Short" and df['close'].iloc[j] > gap['top']:
+                    is_fresh = False; break
+            if is_fresh:
+                gaps.append(gap)
+
+    # Urutkan dari yang paling dekat harga (paling relevan untuk entry)
+    if stype == "Long":
+        gaps.sort(key=lambda g: g['top'], reverse=True)
+    else:
+        gaps.sort(key=lambda g: g['bottom'])
+
     return gaps
 
 
