@@ -169,12 +169,15 @@ def find_swings(df, left=2, right=2):
 def get_internal_gaps(df, stype, bos_idx, lookback=60):
     """
     FVG dicari dalam range [bos_idx-lookback .. bos_idx].
-    Freshness dicek hanya sampai bos_idx — candle setelah BOS tidak ikut
-    menginvalidasi FVG (belum terjadi saat FVG dinilai).
+    Freshness dicek hanya sampai bos_idx menggunakan CLOSE, bukan wick.
 
-    FIX: Dibatasi lookback=60 candle sebelum BOS agar dengan swing left/right
-    besar (20,20), range scan tidak terlalu panjang yang menyebabkan
-    banyak FVG valid gagal freshness check.
+    FIX FRESHNESS: Sebelumnya pakai low/high (wick) untuk cek apakah
+    FVG sudah disentuh → terlalu ketat. FVG yang di-wick tapi close-nya
+    masih di luar zona tetap dianggap valid oleh trader SMC.
+    Sekarang freshness hanya batal kalau CLOSE menembus zona FVG.
+
+    Contoh: FVG Long bottom=0.21600. Candle wick low=0.21590 tapi close=0.21700
+    → sebelumnya dianggap stale (salah), sekarang tetap fresh (benar).
     """
     gaps = []
     scan_start = max(2, bos_idx - lookback)
@@ -188,9 +191,11 @@ def get_internal_gaps(df, stype, bos_idx, lookback=60):
         if gap:
             is_fresh = True
             for j in range(i + 1, bos_idx + 1):
-                if stype == "Long" and df['low'].iloc[j] < gap['bottom']:
+                # Freshness pakai CLOSE bukan wick (low/high)
+                # Wick yang masuk FVG tapi close di luar = FVG masih valid
+                if stype == "Long" and df['close'].iloc[j] < gap['bottom']:
                     is_fresh = False; break
-                if stype == "Short" and df['high'].iloc[j] > gap['top']:
+                if stype == "Short" and df['close'].iloc[j] > gap['top']:
                     is_fresh = False; break
             if is_fresh:
                 gaps.append(gap)
