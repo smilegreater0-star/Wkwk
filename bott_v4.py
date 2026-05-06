@@ -501,7 +501,7 @@ def test_connection():
 # ============================================================
 
 def replay_h1(coin, df_h1):
-    sh_h1, sl_h1 = find_swings(df_h1, left=8, right=8)
+    sh_h1, sl_h1 = find_swings(df_h1, left=20, right=20)
     if not sh_h1 or not sl_h1:
         return None
 
@@ -597,7 +597,7 @@ def reconstruct_state():
 # ============================================================
 
 def run_bot():
-    print("🚀 SNIPER V4 | SMC FIXED v2 | ACTIVE")
+    print("BEGO MONEY CONCEPTS")
     if not test_connection():
         print("⛔ Tidak bisa konek ke Bybit.")
         return
@@ -618,7 +618,7 @@ def run_bot():
                 df_h1_live = get_data(coin, "60", limit=100)
                 if df_h1_live is None: continue
 
-                sh_h1, sl_h1 = find_swings(df_h1_live, left=8, right=8)
+                sh_h1, sl_h1 = find_swings(df_h1_live, left=20, right=20)
                 if not sh_h1 or not sl_h1: continue
 
                 curr_h1   = df_h1_live.iloc[-1]
