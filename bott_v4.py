@@ -574,7 +574,10 @@ def replay_h1(coin, df_h1):
     state['fvg_touch_ts'] = fvg_touch_ts
 
     print(f"\n📊 {coin}: BOS {stype} | H:{sh_h1[-1]['val']} L:{sl_h1[-1]['val']}")
-    print(f"🔄 {coin}: Replay → Phase:{phase} FVG:{fvg_idx+1}/{len(gaps)}")
+    print(f"🔄 {coin}: Replay → Phase:{phase} FVG:{fvg_idx+1}/{len(gaps)} | TP:{tp_val}")
+    for gi, g in enumerate(gaps):
+        marker = "◀" if gi == fvg_idx else " "
+        print(f"   {marker} FVG {gi+1}: {g['bottom']} – {g['top']}")
     return state
 
 
@@ -647,6 +650,11 @@ def run_bot():
 
                     # ── PHASE 1: TUNGGU FVG H1 DISENTUH ──────────────
                     if setup['phase'] == "WAIT_FVG_TOUCH":
+                        fvg_dir = "pullback ke" if stype == "Long" else "bounce ke"
+                        print(f"⏳ {coin}: Nunggu {fvg_dir} FVG {fvg_idx+1}/{len(fvg_list)} "
+                              f"[{active_fvg['bottom']} – {active_fvg['top']}] | "
+                              f"Harga: {curr_h1['close']}")
+
                         if fvg_fully_broken(closed_h1, active_fvg, stype):
                             print(f"❌ {coin}: FVG {fvg_idx+1} ditembus → coba berikutnya.")
                             pending[coin]['fvg_idx'] += 1; continue
@@ -683,9 +691,9 @@ def run_bot():
                         if m5_state['phase'] == 'WAIT_IDM':
                             idm_level = m5_state.get('idm_level')
                             if idm_level:
-                                print(f"⏳ {coin}: IDM @ {idm_level} | Menunggu sentuhan...")
+                                print(f"⏳ {coin}: IDM M5 @ {idm_level} | Harga M5: {curr_m5['close']} | Menunggu sentuhan...")
                             else:
-                                print(f"⏳ {coin}: Belum ada IDM.")
+                                print(f"⏳ {coin}: IDM M5 belum terbentuk | Harga M5: {curr_m5['close']}")
                             if stype == "Long" and curr_m5['close'] >= setup['tp']:
                                 print(f"🗑️ {coin}: TP kena tanpa IDM."); del pending[coin]
                             elif stype == "Short" and curr_m5['close'] <= setup['tp']:
@@ -713,6 +721,11 @@ def run_bot():
                         freeze_low  = setup['m5_freeze_low']
                         freeze_high = setup['m5_freeze_high']
                         freeze_ts   = setup['m5_freeze_ts']
+
+                        if stype == "Long":
+                            print(f"⏳ {coin}: Nunggu BOS M5 break bawah {freeze_low} | Harga M5: {curr_m5['close']}")
+                        else:
+                            print(f"⏳ {coin}: Nunggu BOS M5 break atas {freeze_high} | Harga M5: {curr_m5['close']}")
 
                         df_after = df_m5[df_m5['ts'] > freeze_ts]
                         if df_after.empty: continue
@@ -749,6 +762,11 @@ def run_bot():
                         freeze_low  = setup['m5_freeze_low']
                         freeze_high = setup['m5_freeze_high']
                         freeze_ts   = setup['m5_freeze_ts']
+
+                        if stype == "Long":
+                            print(f"⏳ {coin}: Nunggu MSS break atas {freeze_high} | Harga M5: {curr_m5['close']}")
+                        else:
+                            print(f"⏳ {coin}: Nunggu MSS break bawah {freeze_low} | Harga M5: {curr_m5['close']}")
 
                         df_after = df_m5[df_m5['ts'] > freeze_ts]
                         if df_after.empty: continue
