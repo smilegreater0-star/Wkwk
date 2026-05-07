@@ -23,7 +23,7 @@ class _Tee:
         out = ''
         for ch in msg:
             if self._newline and ch != '\n':
-                out += (datetime.datetime.utcnow() + datetime.timedelta(hours=7)).strftime('[%H:%M:%S] ')
+                out += (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=7)).strftime('[%H:%M:%S] ')
                 self._newline = False
             out += ch
             if ch == '\n':
@@ -246,8 +246,16 @@ def get_internal_gaps(df, stype, bos_idx, lookback=60):
 
 def replay_m5(df, stype):
     """
-    State machine IDM M5. Menggunakan while loop (bukan for)
-    agar candle bisa di-reprocess saat transisi state.
+    State machine IDM M5 dengan deteksi SWEEP.
+
+    Dua skenario setelah IDM disentuh:
+    1. BOS klasik : close menembus freeze_low/high → lanjut ke WAIT_MSS
+    2. SWEEP      : wick menembus freeze_low/high tapi CLOSE kembali di dalam →
+                    "struktur kuat" — likuiditas sudah diambil tanpa break struktur.
+                    Ini juga valid sebagai trigger, langsung cari MSS.
+
+    Return dict dengan key tambahan:
+    - 'trigger': 'bos' | 'sweep'
     """
     if len(df) < 3:
         return {'phase': 'WAIT_IDM', 'idm_level': None}
@@ -266,7 +274,7 @@ def replay_m5(df, stype):
                 if candidate_low is None or c['low'] <= candidate_low:
                     candidate_low = c['low']; candidate_high = c['high']; i += 1
                 else:
-                    state = 'KONSOLIDASI'  # reprocess candle ini
+                    state = 'KONSOLIDASI'
 
             elif state == 'KONSOLIDASI':
                 if c['low'] < candidate_low:
@@ -294,7 +302,7 @@ def replay_m5(df, stype):
                 if candidate_high is None or c['high'] >= candidate_high:
                     candidate_high = c['high']; candidate_low = c['low']; i += 1
                 else:
-                    state = 'KONSOLIDASI'  # reprocess candle ini
+                    state = 'KONSOLIDASI'
 
             elif state == 'KONSOLIDASI':
                 if c['high'] > candidate_high:
@@ -318,6 +326,73 @@ def replay_m5(df, stype):
 
     idm_level = candidate_high if stype == "Long" else candidate_low
     return {'phase': 'WAIT_IDM', 'idm_level': idm_level, 'state': state}
+
+
+def check_bos_or_sweep(df_m5, freeze_high, freeze_low, freeze_ts, stype):
+    """
+    Setelah IDM tersentuh, cek apakah terjadi BOS atau SWEEP.
+
+    BOS   : close menembus freeze_low (Long) / freeze_high (Short)
+    SWEEP : wick menembus level tsb tapi close kembali di dalam range
+            → "Struktur Kuat" — likuiditas diambil tanpa break struktur.
+
+    Return:
+    {
+        'trigger': 'bos' | 'sweep' | None,
+        'ts': timestamp candle trigger,
+        'sweep_low': float (hanya untuk sweep Long),
+        'sweep_high': float (hanya untuk sweep Short),
+        'nfh': float,  # range untuk cari MSS
+        'nfl': float,
+    }
+    """
+    df_after = df_m5[df_m5['ts'] > freeze_ts]
+    if df_after.empty:
+        return {'trigger': None}
+
+    for _, c in df_after.iterrows():
+        if stype == "Long":
+            # BOS: close break bawah
+            if float(c['close']) < freeze_low:
+                df_range = df_m5[(df_m5['ts'] > freeze_ts) & (df_m5['ts'] <= c['ts'])]
+                return {
+                    'trigger'    : 'bos',
+                    'ts'         : int(c['ts']),
+                    'nfh'        : float(df_range['high'].max()),
+                    'nfl'        : float(df_range['low'].min()),
+                }
+            # SWEEP: wick break bawah tapi close di atas freeze_low
+            if float(c['low']) < freeze_low and float(c['close']) >= freeze_low:
+                df_range = df_m5[(df_m5['ts'] > freeze_ts) & (df_m5['ts'] <= c['ts'])]
+                return {
+                    'trigger'    : 'sweep',
+                    'ts'         : int(c['ts']),
+                    'sweep_low'  : float(c['low']),
+                    'nfh'        : float(df_range['high'].max()),
+                    'nfl'        : float(df_range['low'].min()),
+                }
+        else:  # Short
+            # BOS: close break atas
+            if float(c['close']) > freeze_high:
+                df_range = df_m5[(df_m5['ts'] > freeze_ts) & (df_m5['ts'] <= c['ts'])]
+                return {
+                    'trigger'    : 'bos',
+                    'ts'         : int(c['ts']),
+                    'nfh'        : float(df_range['high'].max()),
+                    'nfl'        : float(df_range['low'].min()),
+                }
+            # SWEEP: wick break atas tapi close di bawah freeze_high
+            if float(c['high']) > freeze_high and float(c['close']) <= freeze_high:
+                df_range = df_m5[(df_m5['ts'] > freeze_ts) & (df_m5['ts'] <= c['ts'])]
+                return {
+                    'trigger'     : 'sweep',
+                    'ts'          : int(c['ts']),
+                    'sweep_high'  : float(c['high']),
+                    'nfh'         : float(df_range['high'].max()),
+                    'nfl'         : float(df_range['low'].min()),
+                }
+
+    return {'trigger': None}
 
 
 # ============================================================
@@ -750,45 +825,42 @@ def run_bot():
                         pending[coin]['m5_freeze_ts']    = freeze_ts
                         continue
 
-                    # ── PHASE 3: TUNGGU BOS M5 ────────────────────────
+                    # ── PHASE 3: TUNGGU BOS / SWEEP M5 ───────────────
                     if setup['phase'] == "WAIT_BOS_BREAK":
                         freeze_low  = setup['m5_freeze_low']
                         freeze_high = setup['m5_freeze_high']
                         freeze_ts   = setup['m5_freeze_ts']
 
                         if stype == "Long":
-                            print(f"⏳ {coin}: Nunggu BOS M5 break bawah {freeze_low} | Harga M5: {curr_m5['close']}")
+                            print(f"⏳ {coin}: Nunggu BOS/Sweep M5 < {freeze_low:.6f} | Harga: {curr_m5['close']}")
                         else:
-                            print(f"⏳ {coin}: Nunggu BOS M5 break atas {freeze_high} | Harga M5: {curr_m5['close']}")
+                            print(f"⏳ {coin}: Nunggu BOS/Sweep M5 > {freeze_high:.6f} | Harga: {curr_m5['close']}")
 
-                        df_after = df_m5[df_m5['ts'] > freeze_ts]
-                        if df_after.empty: continue
+                        result = check_bos_or_sweep(df_m5, freeze_high, freeze_low, freeze_ts, stype)
 
-                        bos_broken = False; bos_candle_ts = None
-                        for _, c in df_after.iterrows():
-                            if stype == "Long" and c['close'] < freeze_low:
-                                bos_broken = True; bos_candle_ts = c['ts']
-                                print(f"📉 {coin}: BOS Bearish M5 @ {c['close']:.6f}. Masuk WAIT_MSS."); break
-                            elif stype == "Short" and c['close'] > freeze_high:
-                                bos_broken = True; bos_candle_ts = c['ts']
-                                print(f"📈 {coin}: BOS Bullish M5 @ {c['close']:.6f}. Masuk WAIT_MSS."); break
+                        if result['trigger'] is not None:
+                            trigger    = result['trigger']
+                            trigger_ts = result['ts']
+                            new_fh     = result['nfh']
+                            new_fl     = result['nfl']
 
-                        if bos_broken:
-                            # FIX BUG #4: nfh/nfl hanya dari candle antara IDM dan BOS M5
-                            # Sebelumnya pakai max seluruh dai → range terlalu lebar → MSS tidak pernah tercapai
-                            df_idm_to_bos = df_m5[(df_m5['ts'] > freeze_ts) & (df_m5['ts'] <= bos_candle_ts)]
-                            new_fh = df_idm_to_bos['high'].max() if not df_idm_to_bos.empty else freeze_high
-                            new_fl = df_idm_to_bos['low'].min()  if not df_idm_to_bos.empty else freeze_low
+                            if trigger == 'bos':
+                                print(f"📉 {coin}: BOS M5 terkonfirmasi @ [{trigger_ts}]. Masuk WAIT_MSS.")
+                            else:
+                                sweep_val = result.get('sweep_low') or result.get('sweep_high')
+                                print(f"💫 {coin}: SWEEP M5 @ {sweep_val:.6f} (struktur kuat). Masuk WAIT_MSS.")
+
                             pending[coin]['phase']           = "WAIT_MSS"
                             pending[coin]['m5_freeze_high']  = new_fh
                             pending[coin]['m5_freeze_low']   = new_fl
-                            pending[coin]['m5_freeze_ts']    = bos_candle_ts
+                            pending[coin]['m5_freeze_ts']    = trigger_ts
                             pending[coin]['idm_touched_val'] = None
+                            pending[coin]['trigger_type']    = trigger
                         else:
                             if stype == "Long" and curr_m5['close'] >= setup['tp']:
-                                print(f"🗑️ {coin}: TP kena tanpa BOS M5."); del pending[coin]
+                                print(f"🗑️ {coin}: TP kena tanpa BOS/Sweep M5."); del pending[coin]
                             elif stype == "Short" and curr_m5['close'] <= setup['tp']:
-                                print(f"🗑️ {coin}: TP kena tanpa BOS M5."); del pending[coin]
+                                print(f"🗑️ {coin}: TP kena tanpa BOS/Sweep M5."); del pending[coin]
                         continue
 
                     # ── PHASE 4: TUNGGU MSS ───────────────────────────
@@ -815,6 +887,7 @@ def run_bot():
                                     print(f"🔄 {coin}: Break bawah lagi. Cari IDM baru.")
                                     pending[coin].update({
                                         'phase': "WAIT_IDM_TOUCH",
+                                        'fvg_touch_ts': curr_m5['ts'],
                                         'm5_freeze_high': None, 'm5_freeze_low': None, 'm5_freeze_ts': None
                                     }); break
                             else:
@@ -825,6 +898,7 @@ def run_bot():
                                     print(f"🔄 {coin}: Break atas lagi. Cari IDM baru.")
                                     pending[coin].update({
                                         'phase': "WAIT_IDM_TOUCH",
+                                        'fvg_touch_ts': curr_m5['ts'],
                                         'm5_freeze_high': None, 'm5_freeze_low': None, 'm5_freeze_ts': None
                                     }); break
 
