@@ -681,6 +681,22 @@ def replay_h1(coin, df_h1):
             if stype == "Long" and candle['close'] >= tp_val: return None
             if stype == "Short" and candle['close'] <= tp_val: return None
 
+    # Jika masih di WAIT_FVG_TOUCH, cari fvg_idx yang paling relevan:
+    # skip semua FVG yang sudah dilewati harga (candle terakhir sudah melewatinya)
+    if phase == "WAIT_FVG_TOUCH":
+        last_close = df_snap.iloc[-2]['close']
+        while fvg_idx < len(gaps):
+            fvg = gaps[fvg_idx]
+            # Long: harga sekarang di atas top FVG → FVG sudah dilewati ke atas
+            if stype == "Long" and last_close > fvg['top']:
+                fvg_idx += 1; continue
+            # Short: harga sekarang di bawah bottom FVG → FVG sudah dilewati ke bawah
+            if stype == "Short" and last_close < fvg['bottom']:
+                fvg_idx += 1; continue
+            break
+        if fvg_idx >= len(gaps):
+            return None
+
     state['fvg_idx'] = fvg_idx
     state['phase']   = phase
     state['fvg_touch_ts'] = fvg_touch_ts
@@ -751,8 +767,6 @@ def run_bot():
                     bos_idx  = setup.get('bos_idx', 0)
 
                     # Refresh FVG list + TP setiap loop pakai H1 terbaru
-                    # Ini penting agar FVG post-BOS yang baru terbentuk ikut terdeteksi
-                    # dan TP selalu mencerminkan high/low terbaru setelah BOS
                     fresh_gaps = get_internal_gaps(df_h1_live, stype, bos_idx)
                     if fresh_gaps:
                         pending[coin]['fvg_list'] = fresh_gaps
@@ -762,6 +776,23 @@ def run_bot():
                     new_tp    = since_bos['high'].max() if stype == "Long" else since_bos['low'].min()
                     pending[coin]['tp'] = new_tp
                     setup['tp']        = new_tp
+
+                    # Update fvg_idx: skip FVG yang sudah dilewati harga saat ini
+                    # Ini penting saat FVG list bertambah (post-BOS) atau harga sudah naik jauh
+                    if setup['phase'] == "WAIT_FVG_TOUCH":
+                        curr_close = curr_h1['close']
+                        new_idx    = fvg_idx
+                        while new_idx < len(fvg_list):
+                            fvg = fvg_list[new_idx]
+                            if stype == "Long"  and curr_close > fvg['top']:    new_idx += 1; continue
+                            if stype == "Short" and curr_close < fvg['bottom']: new_idx += 1; continue
+                            break
+                        if new_idx != fvg_idx:
+                            pending[coin]['fvg_idx'] = new_idx
+                            fvg_idx = new_idx
+                        if fvg_idx >= len(fvg_list):
+                            print(f"🗑️ {coin}: Semua FVG sudah dilewati harga.")
+                            del pending[coin]; continue
 
                     if h1_trend_broken(curr_h1, setup, sh_h1, sl_h1):
                         print(f"🔄 {coin}: Harga melewati TP tanpa pullback. Setup batal.")
