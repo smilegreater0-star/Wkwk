@@ -406,14 +406,15 @@ def price_in_fvg(price_high, price_low, fvg):
 
 def candle_touches_fvg(candle, fvg, stype):
     """
-    Cukup wick masuk zona FVG dari arah yang benar.
-    Long  : low pullback ke dalam FVG (top..bottom dari atas)
-    Short : high bounce ke dalam FVG (bottom..top dari bawah)
+    Wick menyentuh atau menembus zona FVG dari arah yang benar.
+    Long  : low pullback ke zona FVG (low <= top FVG) dan tidak close di bawah bottom
+    Short : high bounce ke zona FVG (high >= bottom FVG) dan tidak close di atas top
+    Syarat >= bottom / <= top dihapus — jika wick lewat bawah tapi tidak broken, tetap valid.
     """
     if stype == "Long":
-        return candle['low'] <= fvg['top'] and candle['low'] >= fvg['bottom']
+        return candle['low'] <= fvg['top'] and not fvg_fully_broken(candle, fvg, stype)
     else:
-        return candle['high'] >= fvg['bottom'] and candle['high'] <= fvg['top']
+        return candle['high'] >= fvg['bottom'] and not fvg_fully_broken(candle, fvg, stype)
 
 def fvg_fully_broken(candle, fvg, stype):
     """FVG invalid jika close menembus sepenuhnya melewati zona."""
@@ -746,8 +747,21 @@ def run_bot():
                 if coin in pending:
                     setup    = pending[coin]
                     stype    = setup['type']
-                    fvg_list = setup['fvg_list']
                     fvg_idx  = setup['fvg_idx']
+                    bos_idx  = setup.get('bos_idx', 0)
+
+                    # Refresh FVG list + TP setiap loop pakai H1 terbaru
+                    # Ini penting agar FVG post-BOS yang baru terbentuk ikut terdeteksi
+                    # dan TP selalu mencerminkan high/low terbaru setelah BOS
+                    fresh_gaps = get_internal_gaps(df_h1_live, stype, bos_idx)
+                    if fresh_gaps:
+                        pending[coin]['fvg_list'] = fresh_gaps
+                    fvg_list = pending[coin]['fvg_list']
+
+                    since_bos = df_h1_live.iloc[bos_idx:]
+                    new_tp    = since_bos['high'].max() if stype == "Long" else since_bos['low'].min()
+                    pending[coin]['tp'] = new_tp
+                    setup['tp']        = new_tp
 
                     if h1_trend_broken(curr_h1, setup, sh_h1, sl_h1):
                         print(f"🔄 {coin}: Harga melewati TP tanpa pullback. Setup batal.")
@@ -889,7 +903,7 @@ def run_bot():
                                     print(f"🔄 {coin}: Break bawah lagi. Cari IDM baru.")
                                     pending[coin].update({
                                         'phase': "WAIT_IDM_TOUCH",
-                                        'fvg_touch_ts': curr_m5['ts'],
+                                        'fvg_touch_ts': setup.get('fvg_touch_ts', setup['bos_ts']),
                                         'm5_freeze_high': None, 'm5_freeze_low': None, 'm5_freeze_ts': None
                                     }); break
                             else:
@@ -900,7 +914,7 @@ def run_bot():
                                     print(f"🔄 {coin}: Break atas lagi. Cari IDM baru.")
                                     pending[coin].update({
                                         'phase': "WAIT_IDM_TOUCH",
-                                        'fvg_touch_ts': curr_m5['ts'],
+                                        'fvg_touch_ts': setup.get('fvg_touch_ts', setup['bos_ts']),
                                         'm5_freeze_high': None, 'm5_freeze_low': None, 'm5_freeze_ts': None
                                     }); break
 
