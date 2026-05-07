@@ -83,31 +83,52 @@ SYMBOLS = [
 pending          = {}
 active_positions = {}
 instrument_cache = {}
+last_m5_fetch    = {}   # {coin: timestamp} — throttle fetch M5 per 5 menit
 
 
 # ============================================================
 # FUNGSI DATA
 # ============================================================
 
+_last_api_ts = 0.0
+API_MIN_INTERVAL = 0.5   # detik minimum antar semua API call
+
+def _api_throttle():
+    """Pastikan jarak minimal antar API call — dipanggil sebelum setiap request."""
+    global _last_api_ts
+    wait = API_MIN_INTERVAL - (time.time() - _last_api_ts)
+    if wait > 0:
+        time.sleep(wait)
+    _last_api_ts = time.time()
+
 def get_data(symbol, interval, limit=200):
-    try:
-        res = session.get_kline(
-            category=CATEGORY, symbol=symbol,
-            interval=interval, limit=limit
-        )
-        if res['retCode'] == 0:
-            df = pd.DataFrame(
-                res['result']['list'],
-                columns=['ts','open','high','low','close','vol','turnover']
+    for attempt in range(3):
+        try:
+            _api_throttle()
+            res = session.get_kline(
+                category=CATEGORY, symbol=symbol,
+                interval=interval, limit=limit
             )
-            df[['open','high','low','close','ts']] = \
-                df[['open','high','low','close','ts']].apply(pd.to_numeric)
-            return df.iloc[::-1].reset_index(drop=True)
-        print(f"⚠️ get_data {symbol} {interval}: {res.get('retMsg','')}")
-        return None
-    except Exception as e:
-        print(f"⚠️ get_data {symbol} {interval}: {e}")
-        return None
+            if res['retCode'] == 0:
+                df = pd.DataFrame(
+                    res['result']['list'],
+                    columns=['ts','open','high','low','close','vol','turnover']
+                )
+                df[['open','high','low','close','ts']] = \
+                    df[['open','high','low','close','ts']].apply(pd.to_numeric)
+                return df.iloc[::-1].reset_index(drop=True)
+            # Rate limit → tunggu lebih lama lalu retry
+            if res.get('retCode') == 10006:
+                wait_s = 10 * (attempt + 1)
+                print(f"⚠️ Rate limit ({symbol} {interval}). Tunggu {wait_s}s...")
+                time.sleep(wait_s)
+                continue
+            print(f"⚠️ get_data {symbol} {interval}: {res.get('retMsg','')}")
+            return None
+        except Exception as e:
+            print(f"⚠️ get_data {symbol} {interval}: {e}")
+            return None
+    return None
 
 
 # ============================================================
@@ -712,7 +733,6 @@ def replay_h1(coin, df_h1):
 def reconstruct_state():
     for coin in SYMBOLS:
         try:
-            time.sleep(1)
             df_h1 = get_data(coin, "60", limit=100)
             if df_h1 is None: continue
             state = replay_h1(coin, df_h1)
@@ -748,7 +768,6 @@ def run_bot():
 
         for coin in SYMBOLS:
             try:
-                time.sleep(2)
 
                 df_h1_live = get_data(coin, "60", limit=100)
                 if df_h1_live is None: continue
@@ -826,10 +845,19 @@ def run_bot():
                                 print(f"🗑️ {coin}: TP kena sebelum FVG."); del pending[coin]
                         continue
 
-                    # ── AMBIL DATA M5 ─────────────────────────────────
-                    time.sleep(1)
-                    df_m5_live = get_data(coin, "5", limit=200)
-                    if df_m5_live is None: continue
+                    # ── AMBIL DATA M5 — hanya tiap 5 menit ────────────
+                    M5_INTERVAL = 5 * 60  # 300 detik
+                    now = time.time()
+                    if coin not in last_m5_fetch or (now - last_m5_fetch[coin]) >= M5_INTERVAL:
+                        df_m5_live = get_data(coin, "5", limit=200)
+                        if df_m5_live is None: continue
+                        last_m5_fetch[coin] = now
+                        pending[coin]['_m5_cache'] = df_m5_live
+                    else:
+                        df_m5_live = pending[coin].get('_m5_cache')
+                        if df_m5_live is None: continue
+                        sisa = int(M5_INTERVAL - (now - last_m5_fetch[coin]))
+                        print(f"⏱️  {coin}: Pakai cache M5 (fetch baru dalam {sisa}s)")
 
                     # Anchor M5 dari fvg_touch_ts — IDM harus terbentuk SETELAH
                     # FVG disentuh, bukan dari BOS yang bisa jauh ke belakang.
@@ -1055,7 +1083,7 @@ def run_bot():
             except Exception as e:
                 print(f"⚠️ Error {coin}: {e}"); continue
 
-        time.sleep(10)
+        time.sleep(60)   # loop tiap 60s — cukup karena M5 fetch tiap 5 menit
 
 
 if __name__ == "__main__":
