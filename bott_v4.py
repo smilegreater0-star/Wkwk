@@ -135,12 +135,14 @@ def get_instrument_info(symbol):
 
 
 def round_qty(qty, step):
-    precision = len(str(step).rstrip('0').split('.')[-1]) if '.' in str(step) else 0
+    step_str  = f'{step:.10f}'.rstrip('0')
+    precision = len(step_str.split('.')[-1]) if '.' in step_str else 0
     return round(int(qty / step) * step, precision)
 
 
 def round_price(price, tick):
-    precision = len(str(tick).rstrip('0').split('.')[-1]) if '.' in str(tick) else 0
+    tick_str  = f'{tick:.10f}'.rstrip('0')
+    precision = len(tick_str.split('.')[-1]) if '.' in tick_str else 0
     return round(round(price / tick) * tick, precision)
 
 
