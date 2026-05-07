@@ -934,7 +934,7 @@ def run_bot():
                                     print(f"🔄 {coin}: Break bawah lagi. Cari IDM baru.")
                                     pending[coin].update({
                                         'phase': "WAIT_IDM_TOUCH",
-                                        'fvg_touch_ts': setup.get('fvg_touch_ts', setup['bos_ts']),
+                                        'fvg_touch_ts': curr_m5['ts'],  # anchor maju ke sekarang
                                         'm5_freeze_high': None, 'm5_freeze_low': None, 'm5_freeze_ts': None
                                     }); break
                             else:
@@ -945,7 +945,7 @@ def run_bot():
                                     print(f"🔄 {coin}: Break atas lagi. Cari IDM baru.")
                                     pending[coin].update({
                                         'phase': "WAIT_IDM_TOUCH",
-                                        'fvg_touch_ts': setup.get('fvg_touch_ts', setup['bos_ts']),
+                                        'fvg_touch_ts': curr_m5['ts'],  # anchor maju ke sekarang
                                         'm5_freeze_high': None, 'm5_freeze_low': None, 'm5_freeze_ts': None
                                     }); break
 
@@ -982,6 +982,7 @@ def run_bot():
                                 entry_price = freeze_high if stype == "Long" else freeze_low
                                 print(f"↩️ {coin}: No BB/FVG, fallback RBS @ {entry_price:.6f}")
 
+                            # SL di ujung MSS candle — Low untuk Long, High untuk Short
                             sl_price = mss_candle['low'] if stype == "Long" else mss_candle['high']
                             print(f"🎯 {coin}: FVG/RBS entry @ {entry_price} | SL {sl_price}")
 
