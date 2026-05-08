@@ -799,7 +799,6 @@ def run_bot():
                     setup['tp']        = new_tp
 
                     # Update fvg_idx: skip FVG yang sudah dilewati harga saat ini
-                    # Ini penting saat FVG list bertambah (post-BOS) atau harga sudah naik jauh
                     if setup['phase'] == "WAIT_FVG_TOUCH":
                         curr_close = curr_h1['close']
                         new_idx    = fvg_idx
@@ -812,8 +811,12 @@ def run_bot():
                             pending[coin]['fvg_idx'] = new_idx
                             fvg_idx = new_idx
                         if fvg_idx >= len(fvg_list):
-                            print(f"🗑️ {coin}: Semua FVG sudah dilewati harga.")
-                            del pending[coin]; continue
+                            # Semua FVG dilewati — jangan langsung hapus.
+                            # Reset fvg_idx ke 0 agar nunggu pullback ke FVG manapun.
+                            # TP check di h1_trend_broken yang akan cancel kalau TP kena.
+                            pending[coin]['fvg_idx'] = 0
+                            fvg_idx = 0
+                            print(f"⏳ {coin}: Harga di atas semua FVG, nunggu pullback...")
 
                     if h1_trend_broken(curr_h1, setup, sh_h1, sl_h1):
                         print(f"🔄 {coin}: Harga melewati TP tanpa pullback. Setup batal.")
@@ -1043,8 +1046,6 @@ def run_bot():
                 bos_idx   = ref_idx
 
                 df_h1_snap = df_h1_live.copy()
-
-                # FIX #1: FVG hanya dari dalam range BOS
                 gaps = get_internal_gaps(df_h1_snap, stype, bos_idx)
                 if not gaps:
                     print(f"⚠️ {coin}: BOS {stype} tapi tidak ada FVG di dalam range.")
@@ -1055,10 +1056,17 @@ def run_bot():
                 # FIX #2: anchor M5 dari bos_ts
                 bos_ts    = df_h1_snap['ts'].iloc[bos_idx]
 
+                # Deduplikasi: jangan overwrite pending kalau swing_val sama
+                # (swing idx berubah tiap fetch, tapi value stabil)
+                existing = pending.get(coin)
+                if existing and existing.get('swing_val') == swing_val and existing.get('type') == stype:
+                    continue  # BOS yang sama, skip
+
                 pending[coin] = {
                     'type': stype, 'df_h1': df_h1_snap,
                     'fvg_list': gaps, 'fvg_idx': 0,
                     'tp': tp_val, 'bos_ts': bos_ts, 'bos_idx': bos_idx,
+                    'swing_val': swing_val,
                     'phase': "WAIT_FVG_TOUCH", 'fvg_touch_ts': 0,
                     'm5_freeze_high': None, 'm5_freeze_low': None, 'm5_freeze_ts': None,
                     'idm_list': [], 'idm_touched_val': None,
