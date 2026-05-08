@@ -83,52 +83,31 @@ SYMBOLS = [
 pending          = {}
 active_positions = {}
 instrument_cache = {}
-last_m5_fetch    = {}   # {coin: timestamp} — throttle fetch M5 per 5 menit
 
 
 # ============================================================
 # FUNGSI DATA
 # ============================================================
 
-_last_api_ts = 0.0
-API_MIN_INTERVAL = 0.5   # detik minimum antar semua API call
-
-def _api_throttle():
-    """Pastikan jarak minimal antar API call — dipanggil sebelum setiap request."""
-    global _last_api_ts
-    wait = API_MIN_INTERVAL - (time.time() - _last_api_ts)
-    if wait > 0:
-        time.sleep(wait)
-    _last_api_ts = time.time()
-
 def get_data(symbol, interval, limit=200):
-    for attempt in range(3):
-        try:
-            _api_throttle()
-            res = session.get_kline(
-                category=CATEGORY, symbol=symbol,
-                interval=interval, limit=limit
+    try:
+        res = session.get_kline(
+            category=CATEGORY, symbol=symbol,
+            interval=interval, limit=limit
+        )
+        if res['retCode'] == 0:
+            df = pd.DataFrame(
+                res['result']['list'],
+                columns=['ts','open','high','low','close','vol','turnover']
             )
-            if res['retCode'] == 0:
-                df = pd.DataFrame(
-                    res['result']['list'],
-                    columns=['ts','open','high','low','close','vol','turnover']
-                )
-                df[['open','high','low','close','ts']] = \
-                    df[['open','high','low','close','ts']].apply(pd.to_numeric)
-                return df.iloc[::-1].reset_index(drop=True)
-            # Rate limit → tunggu lebih lama lalu retry
-            if res.get('retCode') == 10006:
-                wait_s = 10 * (attempt + 1)
-                print(f"⚠️ Rate limit ({symbol} {interval}). Tunggu {wait_s}s...")
-                time.sleep(wait_s)
-                continue
-            print(f"⚠️ get_data {symbol} {interval}: {res.get('retMsg','')}")
-            return None
-        except Exception as e:
-            print(f"⚠️ get_data {symbol} {interval}: {e}")
-            return None
-    return None
+            df[['open','high','low','close','ts']] = \
+                df[['open','high','low','close','ts']].apply(pd.to_numeric)
+            return df.iloc[::-1].reset_index(drop=True)
+        print(f"⚠️ get_data {symbol} {interval}: {res.get('retMsg','')}")
+        return None
+    except Exception as e:
+        print(f"⚠️ get_data {symbol} {interval}: {e}")
+        return None
 
 
 # ============================================================
@@ -180,6 +159,33 @@ def find_swings(df, left=2, right=2):
             highs.append({'val': h, 'idx': i, 'ts': df['ts'].iloc[i]})
         if all(df['low'].iloc[i-j] > l for j in range(1, left+1)) and \
            all(df['low'].iloc[i+j] >= l for j in range(1, right+1)):
+            lows.append({'val': l, 'idx': i, 'ts': df['ts'].iloc[i]})
+    return highs, lows
+
+
+# ============================================================
+# DETEKSI BOS — LAST SWING HIGH/LOW
+# ============================================================
+
+def find_last_swing_bos(df):
+    """
+    Deteksi swing high dan swing low lokal dengan konfirmasi 1 candle.
+
+    Swing High: high[i] lebih tinggi dari high[i-1] dan high[i+1]
+    Swing Low : low[i]  lebih rendah dari low[i-1]  dan low[i+1]
+
+    Lebih natural dan fractal dibanding left=N, right=N:
+    - Tidak butuh banyak candle konfirmasi
+    - Cocok untuk market trending dan ranging
+    - Level BOS = last swing high/low yang dilanggar close
+    """
+    highs, lows = [], []
+    for i in range(1, len(df) - 1):
+        h = df['high'].iloc[i]
+        l = df['low'].iloc[i]
+        if df['high'].iloc[i-1] < h and df['high'].iloc[i+1] < h:
+            highs.append({'val': h, 'idx': i, 'ts': df['ts'].iloc[i]})
+        if df['low'].iloc[i-1] > l and df['low'].iloc[i+1] > l:
             lows.append({'val': l, 'idx': i, 'ts': df['ts'].iloc[i]})
     return highs, lows
 
@@ -638,7 +644,7 @@ def test_connection():
 # ============================================================
 
 def replay_h1(coin, df_h1):
-    sh_h1, sl_h1 = find_swings(df_h1, left=20, right=20)
+    sh_h1, sl_h1 = find_last_swing_bos(df_h1)
     if not sh_h1 or not sl_h1:
         return None
 
@@ -653,14 +659,8 @@ def replay_h1(coin, df_h1):
     ref_idx = sl_h1[-1]['idx'] if is_long else sh_h1[-1]['idx']
     # bos_idx = candle yang menutup melampaui swing → candle BOS itu sendiri
     # Cari candle pertama setelah ref_idx yang close melampaui swing
-    bos_idx = None
     swing_val = sh_h1[-1]['val'] if is_long else sl_h1[-1]['val']
-    for j in range(ref_idx + 1, len(df_h1)):
-        c = df_h1.iloc[j]
-        if is_long  and c['close'] > swing_val: bos_idx = j; break
-        if is_short and c['close'] < swing_val: bos_idx = j; break
-    if bos_idx is None:
-        bos_idx = ref_idx + 1
+    bos_idx   = ref_idx  # index swing yang ditembus (deduplikasi)
 
     # FIX #1: FVG hanya dari dalam range BOS
     df_snap = df_h1.copy()
@@ -722,7 +722,7 @@ def replay_h1(coin, df_h1):
     state['phase']   = phase
     state['fvg_touch_ts'] = fvg_touch_ts
 
-    print(f"\n📊 {coin}: BOS {stype} | H:{sh_h1[-1]['val']} L:{sl_h1[-1]['val']}")
+    print(f"\n📊 {coin}: BOS {stype} | Swing: {swing_val}")
     print(f"🔄 {coin}: Replay → Phase:{phase} FVG:{fvg_idx+1}/{len(gaps)} | TP:{tp_val}")
     for gi, g in enumerate(gaps):
         marker = "◀" if gi == fvg_idx else " "
@@ -733,6 +733,7 @@ def replay_h1(coin, df_h1):
 def reconstruct_state():
     for coin in SYMBOLS:
         try:
+            time.sleep(1)
             df_h1 = get_data(coin, "60", limit=100)
             if df_h1 is None: continue
             state = replay_h1(coin, df_h1)
@@ -768,11 +769,12 @@ def run_bot():
 
         for coin in SYMBOLS:
             try:
+                time.sleep(2)
 
                 df_h1_live = get_data(coin, "60", limit=100)
                 if df_h1_live is None: continue
 
-                sh_h1, sl_h1 = find_swings(df_h1_live, left=20, right=20)
+                sh_h1, sl_h1 = find_last_swing_bos(df_h1_live)
                 if not sh_h1 or not sl_h1: continue
 
                 curr_h1   = df_h1_live.iloc[-1]
@@ -845,19 +847,10 @@ def run_bot():
                                 print(f"🗑️ {coin}: TP kena sebelum FVG."); del pending[coin]
                         continue
 
-                    # ── AMBIL DATA M5 — hanya tiap 5 menit ────────────
-                    M5_INTERVAL = 5 * 60  # 300 detik
-                    now = time.time()
-                    if coin not in last_m5_fetch or (now - last_m5_fetch[coin]) >= M5_INTERVAL:
-                        df_m5_live = get_data(coin, "5", limit=200)
-                        if df_m5_live is None: continue
-                        last_m5_fetch[coin] = now
-                        pending[coin]['_m5_cache'] = df_m5_live
-                    else:
-                        df_m5_live = pending[coin].get('_m5_cache')
-                        if df_m5_live is None: continue
-                        sisa = int(M5_INTERVAL - (now - last_m5_fetch[coin]))
-                        print(f"⏱️  {coin}: Pakai cache M5 (fetch baru dalam {sisa}s)")
+                    # ── AMBIL DATA M5 ─────────────────────────────────
+                    time.sleep(1)
+                    df_m5_live = get_data(coin, "5", limit=200)
+                    if df_m5_live is None: continue
 
                     # Anchor M5 dari fvg_touch_ts — IDM harus terbentuk SETELAH
                     # FVG disentuh, bukan dari BOS yang bisa jauh ke belakang.
@@ -1044,15 +1037,10 @@ def run_bot():
                 stype   = "Long" if is_long else "Short"
                 ref_idx = sl_h1[-1]['idx'] if is_long else sh_h1[-1]['idx']
 
-                # Cari bos_idx: candle yang menutup melampaui swing
+                # bos_idx = index swing yang ditembus (untuk deduplikasi)
+                # Agar BOS yang sama tidak diproses ulang tiap loop
                 swing_val = sh_h1[-1]['val'] if is_long else sl_h1[-1]['val']
-                bos_idx   = None
-                for j in range(ref_idx + 1, len(df_h1_live)):
-                    c = df_h1_live.iloc[j]
-                    if is_long  and c['close'] > swing_val: bos_idx = j; break
-                    if is_short and c['close'] < swing_val: bos_idx = j; break
-                if bos_idx is None:
-                    bos_idx = ref_idx + 1
+                bos_idx   = ref_idx
 
                 df_h1_snap = df_h1_live.copy()
 
@@ -1075,7 +1063,7 @@ def run_bot():
                     'm5_freeze_high': None, 'm5_freeze_low': None, 'm5_freeze_ts': None,
                     'idm_list': [], 'idm_touched_val': None,
                 }
-                print(f"\n📊 {coin} | H:{sh_h1[-1]['val']} C:{curr_h1['close']} L:{sl_h1[-1]['val']}")
+                print(f"\n📊 {coin} | Swing: {swing_val} | C: {curr_h1['close']}")
                 print(f"🎯 {coin}: BOS {stype} | {len(gaps)} FVG | TP:{tp_val}")
                 for i, g in enumerate(gaps):
                     print(f"   FVG {i+1}: bottom:{g['bottom']} top:{g['top']}")
@@ -1083,7 +1071,7 @@ def run_bot():
             except Exception as e:
                 print(f"⚠️ Error {coin}: {e}"); continue
 
-        time.sleep(60)   # loop tiap 60s — cukup karena M5 fetch tiap 5 menit
+        time.sleep(10)
 
 
 if __name__ == "__main__":
