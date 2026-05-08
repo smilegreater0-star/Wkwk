@@ -958,7 +958,7 @@ def run_bot():
                                     print(f"🔄 {coin}: Break bawah lagi. Cari IDM baru.")
                                     pending[coin].update({
                                         'phase': "WAIT_IDM_TOUCH",
-                                        'fvg_touch_ts': curr_m5['ts'],  # anchor maju ke sekarang
+                                        'fvg_touch_ts': int(c['ts']),
                                         'm5_freeze_high': None, 'm5_freeze_low': None, 'm5_freeze_ts': None
                                     }); break
                             else:
@@ -967,9 +967,12 @@ def run_bot():
                                 elif c['close'] > freeze_high:
                                     reset_to_idm = True
                                     print(f"🔄 {coin}: Break atas lagi. Cari IDM baru.")
+                                    # Anchor maju ke SETELAH candle yang break atas
+                                    # Bukan curr_m5['ts'] — itu candle live terakhir yang sama terus
+                                    # Pakai ts candle yang break agar replay M5 mulai dari sana
                                     pending[coin].update({
                                         'phase': "WAIT_IDM_TOUCH",
-                                        'fvg_touch_ts': curr_m5['ts'],  # anchor maju ke sekarang
+                                        'fvg_touch_ts': int(c['ts']),
                                         'm5_freeze_high': None, 'm5_freeze_low': None, 'm5_freeze_ts': None
                                     }); break
 
