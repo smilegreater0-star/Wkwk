@@ -612,9 +612,9 @@ def h1_trend_broken(curr_h1, setup, sh_h1, sl_h1):
     tp = setup.get('tp')
     if tp is None:
         return False
-    if setup['type'] == "Long"  and curr_h1['close'] >= tp:
+    if setup['type'] == "Long"  and tp > 0 and curr_h1['close'] >= tp:
         return True
-    if setup['type'] == "Short" and curr_h1['close'] <= tp:
+    if setup['type'] == "Short" and tp > 0 and curr_h1['close'] <= tp:
         return True
     return False
 
@@ -769,7 +769,7 @@ def run_bot():
 
         for coin in SYMBOLS:
             try:
-                time.sleep(2)
+                time.sleep(2.5)
 
                 df_h1_live = get_data(coin, "60", limit=100)
                 if df_h1_live is None: continue
@@ -788,7 +788,11 @@ def run_bot():
                     bos_idx  = setup.get('bos_idx', 0)
 
                     # Refresh FVG list + TP setiap loop pakai H1 terbaru
-                    fresh_gaps = get_internal_gaps(df_h1_live, stype, bos_idx)
+                    if bos_idx >= len(df_h1_live):
+                        print(f"⚠️ {coin}: bos_idx {bos_idx} >= len H1 {len(df_h1_live)}, skip refresh")
+                        fresh_gaps = []
+                    else:
+                        fresh_gaps = get_internal_gaps(df_h1_live, stype, bos_idx)
                     if fresh_gaps:
                         pending[coin]['fvg_list'] = fresh_gaps
                     fvg_list = pending[coin]['fvg_list']
@@ -1070,7 +1074,7 @@ def run_bot():
                     'fvg_list': gaps, 'fvg_idx': 0,
                     'tp': tp_val, 'bos_ts': bos_ts, 'bos_idx': bos_idx,
                     'swing_val': swing_val,
-                    'phase': "WAIT_FVG_TOUCH", 'fvg_touch_ts': 0,
+                    'phase': "WAIT_FVG_TOUCH", 'fvg_touch_ts': bos_ts,
                     'm5_freeze_high': None, 'm5_freeze_low': None, 'm5_freeze_ts': None,
                     'idm_list': [], 'idm_touched_val': None,
                 }
