@@ -482,7 +482,7 @@ def find_breaker_block(df_m5, mss_ts, stype):
                 candle_size = abs(float(c['high']) - float(c['low']))
                 return {
                     'entry'  : float(c['high']),
-                    'sl'     : round(float(c['low']) - candle_size * 0.5, 8),
+                    'sl'     : round(float(c['low']) - candle_size * 0.1, 8),
                     'bb_high': float(c['high']),
                     'bb_low' : float(c['low']),
                     'ts'     : int(c['ts']),
@@ -492,7 +492,7 @@ def find_breaker_block(df_m5, mss_ts, stype):
                 candle_size = abs(float(c['high']) - float(c['low']))
                 return {
                     'entry'  : float(c['low']),
-                    'sl'     : round(float(c['high']) + candle_size * 0.5, 8),
+                    'sl'     : round(float(c['high']) + candle_size * 0.1, 8),
                     'bb_high': float(c['high']),
                     'bb_low' : float(c['low']),
                     'ts'     : int(c['ts']),
@@ -505,6 +505,7 @@ def find_breaker_block(df_m5, mss_ts, stype):
 # ============================================================
 
 def place_limit_order(symbol, side, entry, sl, tp):
+    """Market order — entry langsung saat MSS terkonfirmasi."""
     try:
         info     = get_instrument_info(symbol)
         res_bal  = session.get_wallet_balance(accountType="UNIFIED", coin="USDT")
@@ -521,16 +522,15 @@ def place_limit_order(symbol, side, entry, sl, tp):
             print(f"⚠️ {symbol}: Qty {qty} < minOrderQty {info['min_qty']}, skip.")
             return False
 
-        entry_r = round_price(entry, info['tick_size'])
-        sl_r    = round_price(sl,    info['tick_size'])
-        tp_r    = round_price(tp,    info['tick_size'])
+        sl_r = round_price(sl, info['tick_size'])
+        tp_r = round_price(tp, info['tick_size'])
 
-        print(f"   Balance:{balance:.2f} Risk:{risk_usd:.2f} Dist:{dist} Qty:{qty}")
+        print(f"   Balance:{balance:.2f} Risk:{risk_usd:.2f} Dist:{dist:.6f} Qty:{qty}")
         res = session.place_order(
             category=CATEGORY, symbol=symbol, side=side,
-            orderType="Limit", qty=str(qty), price=str(entry_r),
+            orderType="Market", qty=str(qty),
             stopLoss=str(sl_r), takeProfit=str(tp_r),
-            timeInForce="GTC"
+            timeInForce="IOC"
         )
         if res['retCode'] == 0:
             return True
