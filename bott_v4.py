@@ -458,18 +458,19 @@ def find_breaker_block(df_m5, mss_ts, stype):
     Cari Breaker Block M5: candle berlawanan arah terakhir sebelum MSS.
 
     Long  → cari candle BEARISH terakhir sebelum MSS
-            Entry : high candle bearish tersebut
-            SL    : sedikit di bawah low candle bearish
+            Entry  : high candle bearish (limit order, tunggu pullback ke sini)
+            SL     : di bawah low candle bearish + buffer 50% candle size
+                     (cukup dalam agar tidak kena noise)
 
     Short → cari candle BULLISH terakhir sebelum MSS
-            Entry : low candle bullish tersebut
-            SL    : sedikit di atas high candle bullish
+            Entry  : low candle bullish (limit order, tunggu pullback ke sini)
+            SL     : di atas HIGH candle bullish + buffer 50% candle size
+                     (di luar struktur, bukan pakai body 10% yang terlalu ketat)
 
-    Kenapa lebih baik dari FVG H1 / MSS low:
-    - SL lebih dalam dari low MSS yang obvious (tidak kena stop hunt)
-    - Breaker block = zona yang pernah jadi resistance, setelah MSS
-      ditembus menjadi support → valid sebagai area entry pullback
-    - Dari backtesting: R:R 1:4.19 vs FVG H1 yang miss sama sekali
+    Contoh dari chart DOGE:
+    - Candle bullish: low=0.10860, high=0.10890
+    - Entry Short: 0.10860 (batas bawah candle bullish)
+    - SL: 0.10890 + buffer = ~0.10910 (di luar high, bukan di 0.10881)
     """
     pre_mss = df_m5[df_m5['ts'] < mss_ts].tail(20).reset_index(drop=True)
     if pre_mss.empty:
@@ -478,20 +479,20 @@ def find_breaker_block(df_m5, mss_ts, stype):
     for _, c in pre_mss.iloc[::-1].iterrows():
         if stype == "Long":
             if float(c['close']) < float(c['open']):   # candle bearish
-                body_size = abs(float(c['high']) - float(c['low']))
+                candle_size = abs(float(c['high']) - float(c['low']))
                 return {
                     'entry'  : float(c['high']),
-                    'sl'     : round(float(c['low']) - body_size * 0.1, 8),
+                    'sl'     : round(float(c['low']) - candle_size * 0.5, 8),
                     'bb_high': float(c['high']),
                     'bb_low' : float(c['low']),
                     'ts'     : int(c['ts']),
                 }
         else:
             if float(c['close']) > float(c['open']):   # candle bullish
-                body_size = abs(float(c['high']) - float(c['low']))
+                candle_size = abs(float(c['high']) - float(c['low']))
                 return {
                     'entry'  : float(c['low']),
-                    'sl'     : round(float(c['high']) + body_size * 0.1, 8),
+                    'sl'     : round(float(c['high']) + candle_size * 0.5, 8),
                     'bb_high': float(c['high']),
                     'bb_low' : float(c['low']),
                     'ts'     : int(c['ts']),
