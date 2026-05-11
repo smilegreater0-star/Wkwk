@@ -316,7 +316,7 @@ def replay_m5(df, stype):
                 if c['low'] < candidate_low:
                     candidate_low = c['low']; candidate_high = c['high']
                     state = 'SINGLE_MOVE'; i += 1
-                elif c['high'] >= candidate_high:
+                elif c['high'] >= candidate_high * 0.9995:  # tolerance 0.05%
                     du = df.iloc[idm_start_idx:i+1]
                     return {
                         'phase': 'IDM_TOUCHED', 'idm_level': candidate_high,
@@ -341,7 +341,7 @@ def replay_m5(df, stype):
                 i += 1
 
             elif state == 'TUNGGU_SENTUH':
-                if c['low'] <= candidate_low:
+                if c['low'] <= candidate_low * 1.0005:  # tolerance 0.05%
                     du = df.iloc[idm_start_idx:i+1]
                     return {
                         'phase': 'IDM_TOUCHED', 'idm_level': candidate_low,
@@ -515,6 +515,13 @@ def place_limit_order(symbol, side, entry, sl, tp):
         if dist == 0:
             print(f"⚠️ {symbol}: dist entry-SL = 0, skip.")
             return False
+
+        # Minimum SL distance 0.2% dari harga entry
+        # Mencegah qty raksasa saat SL terlalu dekat
+        min_dist = entry * 0.002
+        if dist < min_dist:
+            print(f"⚠️ {symbol}: SL terlalu dekat ({dist:.8f} < min {min_dist:.8f}), diperlebar ke 0.2%")
+            dist = min_dist
 
         raw_qty = risk_usd / dist
         qty     = round_qty(raw_qty, info['qty_step'])
@@ -923,7 +930,11 @@ def run_bot():
                         else:
                             print(f"⏳ {coin}: Nunggu BOS/Sweep M5 > {freeze_high:.6f} | Harga: {curr_m5['close']}")
 
-                        result = check_bos_or_sweep(df_m5, freeze_high, freeze_low, freeze_ts, stype)
+                        # Pastikan BOS M5 hanya dicari SETELAH fvg_touch_ts
+                        # Mencegah BOS M5 historis (sebelum FVG disentuh) ikut trigger
+                        fvg_ts_anchor = setup.get('fvg_touch_ts') or setup['bos_ts']
+                        df_m5_fresh   = df_m5[df_m5['ts'] >= fvg_ts_anchor].reset_index(drop=True)
+                        result = check_bos_or_sweep(df_m5_fresh, freeze_high, freeze_low, freeze_ts, stype)
 
                         if result['trigger'] is not None:
                             trigger    = result['trigger']
