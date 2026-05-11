@@ -827,6 +827,15 @@ def run_bot():
                         print(f"🔄 {coin}: Harga melewati TP tanpa pullback. Setup batal.")
                         del pending[coin]; continue
 
+                    # Timeout 24 jam sejak FVG disentuh
+                    if setup['phase'] != "WAIT_FVG_TOUCH":
+                        fvg_ts = setup.get('fvg_touch_ts') or 0
+                        now_ms = int(__import__('time').time() * 1000)
+                        elapsed_h = (now_ms - fvg_ts) / 3600000
+                        if fvg_ts > 0 and elapsed_h > 24:
+                            print(f"⏰ {coin}: Timeout 24 jam sejak FVG disentuh ({elapsed_h:.1f}j). Setup batal.")
+                            del pending[coin]; continue
+
                     if fvg_idx >= len(fvg_list):
                         print(f"🗑️ {coin}: Semua FVG habis.")
                         del pending[coin]; continue
