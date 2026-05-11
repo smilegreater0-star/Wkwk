@@ -679,7 +679,8 @@ def replay_h1(coin, df_h1):
         'fvg_list': gaps, 'fvg_idx': 0,
         'tp': tp_val, 'bos_ts': bos_ts,
         'bos_idx': bos_idx,
-        'phase': "WAIT_FVG_TOUCH", 'fvg_touch_ts': 0,
+        'swing_val': swing_val,
+        'phase': "WAIT_FVG_TOUCH", 'fvg_touch_ts': bos_ts,
         'm5_freeze_high': None, 'm5_freeze_low': None, 'm5_freeze_ts': None,
         'idm_list': [], 'idm_touched_val': None,
     }
@@ -704,20 +705,21 @@ def replay_h1(coin, df_h1):
             if stype == "Short" and candle['close'] <= tp_val: return None
 
     # Jika masih di WAIT_FVG_TOUCH, cari fvg_idx yang paling relevan:
-    # skip semua FVG yang sudah dilewati harga (candle terakhir sudah melewatinya)
+    # skip semua FVG yang sudah dilewati harga
     if phase == "WAIT_FVG_TOUCH":
         last_close = df_snap.iloc[-2]['close']
         while fvg_idx < len(gaps):
             fvg = gaps[fvg_idx]
-            # Long: harga sekarang di atas top FVG → FVG sudah dilewati ke atas
             if stype == "Long" and last_close > fvg['top']:
                 fvg_idx += 1; continue
-            # Short: harga sekarang di bawah bottom FVG → FVG sudah dilewati ke bawah
             if stype == "Short" and last_close < fvg['bottom']:
                 fvg_idx += 1; continue
             break
+        # Kalau semua FVG dilewati: tetap return state dengan fvg_idx=0
+        # Loop utama yang akan refresh FVG list (termasuk post-BOS FVG baru)
+        # dan handle logika skip lebih lanjut
         if fvg_idx >= len(gaps):
-            return None
+            fvg_idx = 0
 
     state['fvg_idx'] = fvg_idx
     state['phase']   = phase
