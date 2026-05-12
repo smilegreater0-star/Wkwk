@@ -123,9 +123,10 @@ def get_instrument_info(symbol):
             info = res['result']['list'][0]
             lot  = info['lotSizeFilter']
             data = {
-                'min_qty'  : float(lot['minOrderQty']),
-                'qty_step' : float(lot['qtyStep']),
-                'tick_size': float(info['priceFilter']['tickSize']),
+                'min_qty'    : float(lot['minOrderQty']),
+                'qty_step'   : float(lot['qtyStep']),
+                'tick_size'  : float(info['priceFilter']['tickSize']),
+                'max_leverage': float(info.get('leverageFilter', {}).get('maxLeverage', 10)),
             }
             instrument_cache[symbol] = data
             return data
@@ -532,15 +533,17 @@ def place_limit_order(symbol, side, entry, sl, tp):
         sl_r = round_price(sl,  info['tick_size'])
         tp_r = round_price(tp,  info['tick_size'])
 
-        # Cek dan set leverage ke 10x (cukup untuk risk 1%)
+        # Set leverage ke minimum dari (10x, maxLeverage coin)
         # Bybit error 110013 muncul saat leverage melebihi maxLeverage coin
         try:
+            max_lev = float(info.get('max_leverage', 10))
+            lev     = str(int(min(10, max_lev)))
             session.set_leverage(
                 category=CATEGORY, symbol=symbol,
-                buyLeverage="10", sellLeverage="10"
+                buyLeverage=lev, sellLeverage=lev
             )
         except Exception:
-            pass  # Kalau gagal set leverage, lanjut saja (mungkin sudah benar)
+            pass  # Kalau gagal set leverage, lanjut saja
 
         print(f"   Balance:{balance:.2f} Risk:{risk_usd:.2f} Dist:{dist:.6f} Qty:{qty}")
         res = session.place_order(
