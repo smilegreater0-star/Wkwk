@@ -80,6 +80,42 @@ SYMBOLS = [
     'FARTCOINUSDT', '1000PEPEUSDT',
 ]
 
+
+# ============================================================
+# [v5] HELPER INDICATORS
+# ============================================================
+
+def calc_ema(series, period):
+    return series.ewm(span=period, adjust=False).mean()
+
+def calc_atr(df, period=14):
+    h, l, pc = df['high'], df['low'], df['close'].shift(1)
+    tr = pd.concat([h-l, (h-pc).abs(), (l-pc).abs()], axis=1).max(axis=1)
+    return tr.rolling(period).mean()
+
+def calc_smart_tp(df_h1, bos_idx, stype, entry_price, atr_val):
+    """
+    [v5] TP berbasis swing struktural H1 atau minimum 2.5×ATR.
+    Menggantikan since_bos high/low yang sering terlalu dekat.
+    """
+    swings = []
+    for i in range(1, bos_idx):
+        if stype == "Long":
+            h = df_h1["high"].iloc[i]
+            if df_h1["high"].iloc[i-1] < h and (i+1 >= len(df_h1) or df_h1["high"].iloc[i+1] < h):
+                swings.append(h)
+        else:
+            l = df_h1["low"].iloc[i]
+            if df_h1["low"].iloc[i-1] > l and (i+1 >= len(df_h1) or df_h1["low"].iloc[i+1] > l):
+                swings.append(l)
+    min_tp_dist = atr_val * 2.5
+    if stype == "Long":
+        candidates = sorted([s for s in swings if s > entry_price + min_tp_dist])
+        return candidates[0] if candidates else entry_price + min_tp_dist
+    else:
+        candidates = sorted([s for s in swings if s < entry_price - min_tp_dist], reverse=True)
+        return candidates[0] if candidates else entry_price - min_tp_dist
+
 pending          = {}
 active_positions = {}
 instrument_cache = {}
@@ -524,6 +560,21 @@ def place_limit_order(symbol, side, entry, sl, tp):
             print(f"⚠️ {symbol}: SL terlalu dekat ({dist:.8f} < min {min_dist:.8f}), diperlebar ke 0.5%")
             dist = min_dist
 
+        # [v5] FIX #1: Validasi TP arah benar
+        if side == "Buy"  and tp <= entry:
+            print(f"⚠️ {symbol}: TP ({tp}) ≤ entry ({entry}) untuk Long — skip.")
+            return False
+        if side == "Sell" and tp >= entry:
+            print(f"⚠️ {symbol}: TP ({tp}) ≥ entry ({entry}) untuk Short — skip.")
+            return False
+
+        # [v5] FIX #2: Minimum R:R 2.0
+        tp_dist = abs(tp - entry)
+        rr_check = tp_dist / dist if dist > 0 else 0
+        if rr_check < 2.0:
+            print(f"⚠️ {symbol}: R:R terlalu rendah ({rr_check:.2f} < 2.0) — skip.")
+            return False
+
         raw_qty = risk_usd / dist
         qty     = round_qty(raw_qty, info['qty_step'])
         if qty < info['min_qty']:
@@ -689,8 +740,11 @@ def replay_h1(coin, df_h1):
     if not gaps:
         return None
 
-    since_bos = df_snap.iloc[bos_idx:]
-    tp_val    = since_bos['high'].max() if stype == "Long" else since_bos['low'].min()
+    # [v5] Smart TP berbasis swing struktural
+    atr_snap = calc_atr(df_snap, 14).iloc[-1]
+    if pd.isna(atr_snap): atr_snap = df_snap['close'].iloc[-1] * 0.01
+    curr_close_snap = df_snap.iloc[-2]['close']
+    tp_val = calc_smart_tp(df_snap, bos_idx, stype, curr_close_snap, atr_snap)
     # FIX #2: bos_ts sebagai anchor M5
     bos_ts    = df_snap['ts'].iloc[bos_idx]
 
@@ -828,8 +882,11 @@ def run_bot():
                         pending[coin]['fvg_list'] = fresh_gaps
                     fvg_list = pending[coin]['fvg_list']
 
-                    since_bos = df_h1_live.iloc[bos_idx:]
-                    new_tp    = since_bos['high'].max() if stype == "Long" else since_bos['low'].min()
+                    # [v5] Smart TP refresh
+                    atr_live = calc_atr(df_h1_live, 14).iloc[-1]
+                    if pd.isna(atr_live): atr_live = curr_h1['close'] * 0.01
+                    curr_entry_approx = curr_h1['close']
+                    new_tp = calc_smart_tp(df_h1_live, bos_idx, stype, curr_entry_approx, atr_live)
                     pending[coin]['tp'] = new_tp
                     setup['tp']        = new_tp
 
@@ -1070,9 +1127,23 @@ def run_bot():
                             print(f"⚠️ {coin}: Entry = SL, skip.")
                             continue
 
-                        print(f"🎯 {coin}: {side_order} @ {entry_price} | SL {sl_price} | TP {setup['tp']}")
+                        # [v5] Hitung Smart TP ulang pakai entry_price actual
+                        atr_entry = calc_atr(df_m5, 14).iloc[-1]
+                        if pd.isna(atr_entry): atr_entry = entry_price * 0.005
+                        df_h1_for_tp = pending[coin].get('df_h1', df_h1_live)
+                        bos_for_tp   = pending[coin].get('bos_idx', 0)
+                        smart_tp = calc_smart_tp(df_h1_for_tp, bos_for_tp, stype, entry_price, atr_entry * 12)
 
-                        if place_limit_order(coin, side_order, entry_price, sl_price, setup['tp']):
+                        # Fallback ke setup['tp'] kalau smart TP tidak valid
+                        final_tp = smart_tp
+                        if stype == "Long"  and (final_tp is None or final_tp <= entry_price):
+                            final_tp = setup.get('tp') or entry_price * 1.03
+                        if stype == "Short" and (final_tp is None or final_tp >= entry_price):
+                            final_tp = setup.get('tp') or entry_price * 0.97
+
+                        print(f"🎯 {coin}: {side_order} @ {entry_price} | SL {sl_price} | TP {final_tp}")
+
+                        if place_limit_order(coin, side_order, entry_price, sl_price, final_tp):
                             print(f"✅ {coin}: ORDER TERPASANG!")
                             active_positions[coin] = {
                                 'side': side_order, 'entry': entry_price,
@@ -1090,6 +1161,14 @@ def run_bot():
                 if not (is_long or is_short): continue
 
                 stype   = "Long" if is_long else "Short"
+
+                # [v5] FIX #3: TREND FILTER EMA50 H1
+                # Hanya Long kalau harga di atas EMA50, Short kalau di bawah
+                ema50 = calc_ema(df_h1_live['close'], 50).iloc[-1]
+                if stype == "Long"  and curr_h1['close'] < ema50:
+                    continue
+                if stype == "Short" and curr_h1['close'] > ema50:
+                    continue
                 ref_idx = sl_h1[-1]['idx'] if is_long else sh_h1[-1]['idx']
 
                 # bos_idx = index swing yang ditembus (untuk deduplikasi)
@@ -1103,10 +1182,13 @@ def run_bot():
                     print(f"⚠️ {coin}: BOS {stype} tapi tidak ada FVG di dalam range.")
                     continue
 
-                since_bos = df_h1_snap.iloc[bos_idx:]
-                tp_val    = since_bos['high'].max() if stype == "Long" else since_bos['low'].min()
+                # [v5] FIX #5: Smart TP berbasis swing struktural H1
+                atr_h1_now = calc_atr(df_h1_snap, 14).iloc[-1]
+                if pd.isna(atr_h1_now) or atr_h1_now <= 0: continue
                 # FIX #2: anchor M5 dari bos_ts
                 bos_ts    = df_h1_snap['ts'].iloc[bos_idx]
+                # tp_val sementara pakai ATR — akan direset saat entry tahu entry_price
+                tp_val    = None  # dihitung ulang saat MSS + entry dikonfirmasi
 
                 # Deduplikasi: jangan overwrite pending kalau swing_val sama
                 # (swing idx berubah tiap fetch, tapi value stabil)
