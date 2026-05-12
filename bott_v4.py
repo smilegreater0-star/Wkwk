@@ -516,11 +516,11 @@ def place_limit_order(symbol, side, entry, sl, tp):
             print(f"⚠️ {symbol}: dist entry-SL = 0, skip.")
             return False
 
-        # Minimum SL distance 0.2% dari harga entry
+        # Minimum SL distance 0.5% dari harga entry
         # Mencegah qty raksasa saat SL terlalu dekat
-        min_dist = entry * 0.002
+        min_dist = entry * 0.005
         if dist < min_dist:
-            print(f"⚠️ {symbol}: SL terlalu dekat ({dist:.8f} < min {min_dist:.8f}), diperlebar ke 0.2%")
+            print(f"⚠️ {symbol}: SL terlalu dekat ({dist:.8f} < min {min_dist:.8f}), diperlebar ke 0.5%")
             dist = min_dist
 
         raw_qty = risk_usd / dist
@@ -529,8 +529,18 @@ def place_limit_order(symbol, side, entry, sl, tp):
             print(f"⚠️ {symbol}: Qty {qty} < minOrderQty {info['min_qty']}, skip.")
             return False
 
-        sl_r = round_price(sl, info['tick_size'])
-        tp_r = round_price(tp, info['tick_size'])
+        sl_r = round_price(sl,  info['tick_size'])
+        tp_r = round_price(tp,  info['tick_size'])
+
+        # Cek dan set leverage ke 10x (cukup untuk risk 1%)
+        # Bybit error 110013 muncul saat leverage melebihi maxLeverage coin
+        try:
+            session.set_leverage(
+                category=CATEGORY, symbol=symbol,
+                buyLeverage="10", sellLeverage="10"
+            )
+        except Exception:
+            pass  # Kalau gagal set leverage, lanjut saja (mungkin sudah benar)
 
         print(f"   Balance:{balance:.2f} Risk:{risk_usd:.2f} Dist:{dist:.6f} Qty:{qty}")
         res = session.place_order(
@@ -770,6 +780,14 @@ def run_bot():
     reconstruct_state()
 
     while True:
+        # Tunggu sampai candle M5 berikutnya close
+        # M5 close setiap detik ke-0 dari menit 0,5,10,15,...
+        now      = time.time()
+        sec      = now % 300          # posisi dalam siklus 5 menit
+        wait_sec = 300 - sec + 2      # +2 detik buffer agar candle benar-benar closed
+        if wait_sec > 300: wait_sec = 2
+        print(f"⏱️  Tunggu candle M5 close: {wait_sec:.0f} detik...")
+        time.sleep(wait_sec)
 
         for coin in list(active_positions.keys()):
             try:
@@ -779,7 +797,7 @@ def run_bot():
 
         for coin in SYMBOLS:
             try:
-                time.sleep(2.5)
+                time.sleep(1)
 
                 df_h1_live = get_data(coin, "60", limit=100)
                 if df_h1_live is None: continue
@@ -885,7 +903,7 @@ def run_bot():
                     if len(df_m5) < 5:
                         df_m5 = df_m5_live.tail(80).reset_index(drop=True)
 
-                    curr_m5 = df_m5.iloc[-1]
+                    curr_m5 = df_m5.iloc[-2] if len(df_m5) >= 2 else df_m5.iloc[-1]
 
                     # ── PHASE 2: TUNGGU IDM TERSENTUH ────────────────
                     if setup['phase'] == "WAIT_IDM_TOUCH":
@@ -1059,7 +1077,8 @@ def run_bot():
                             }
                             del pending[coin]
                         else:
-                            print(f"⚠️ {coin}: Gagal pasang order.")
+                            print(f"⚠️ {coin}: Gagal pasang order. Setup dibatalkan agar tidak retry terus.")
+                            del pending[coin]
                     continue
 
                 # ── SCAN BOS H1 BARU ──────────────────────────────────
@@ -1109,7 +1128,7 @@ def run_bot():
             except Exception as e:
                 print(f"⚠️ Error {coin}: {e}"); continue
 
-        time.sleep(10)
+        # Tidak perlu sleep — timing dihandle di awal loop (tunggu M5 close)
 
 
 if __name__ == "__main__":
