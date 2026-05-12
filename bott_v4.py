@@ -800,7 +800,7 @@ def run_bot():
 
         for coin in SYMBOLS:
             try:
-                time.sleep(1)
+                time.sleep(3)
 
                 df_h1_live = get_data(coin, "60", limit=100)
                 if df_h1_live is None: continue
@@ -895,7 +895,7 @@ def run_bot():
                         continue
 
                     # ── AMBIL DATA M5 ─────────────────────────────────
-                    time.sleep(1)
+                    time.sleep(3)
                     df_m5_live = get_data(coin, "5", limit=200)
                     if df_m5_live is None: continue
 
