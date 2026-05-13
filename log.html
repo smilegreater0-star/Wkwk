@@ -5,12 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Bot Log</title>
 <style>
-  body { background:#0d0d0d; color:#ccc; font-family:monospace; font-size:13px; margin:0; padding:10px; }
-  #bar { display:flex; gap:6px; margin-bottom:8px; align-items:center; flex-wrap:wrap; }
+  body { background:#0f1923; color:#ccc; font-family:monospace; font-size:13px; margin:0; padding:10px; }
+  #bar { position:fixed; background: black; top: 0;width:100%; height:8%;display:flex; gap:6px; margin-bottom:8px; align-items:center; flex-wrap:wrap; }
   button { background:#1d4ed8; color:#fff; border:none; padding:8px 14px; border-radius:4px; font-size:13px; cursor:pointer; }
   button.stop  { background:#7f1d1d; }
   button.clear { background:#222; color:#888; }
-  #status { font-size:11px; color:#555; margin-left:auto; }
+  #status {position: fixed;right:3%;  font-size:11px; color:#555;  }
   #log { white-space:pre-wrap; word-break:break-all; line-height:1.8; }
   .w { color:#f5a623; }
   .e { color:#ff4d4d; }
@@ -20,7 +20,6 @@
 </style>
 </head>
 <body>
-
 <div id="bar">
   <button onclick="start()">▶ Start</button>
   <button class="stop"  onclick="stop()">■ Stop</button>
@@ -31,7 +30,7 @@
 
 <script>
 // ── GANTI DENGAN DOMAIN RAILWAY KAMU ──
-var BASE_URL = "https://ISI-DOMAIN-KAMU.up.railway.app";
+var BASE_URL = "https://worker-production-4b22.up.railway.app";
 // ──────────────────────────────────────
 
 var LIMIT = 200; // harus sama dengan limit di server
