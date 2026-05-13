@@ -640,6 +640,12 @@ def move_sl(symbol, new_sl):
 # ============================================================
 
 def check_trailing_sl(coin):
+    """
+    [v5.4b] Enhanced trailing SL:
+      1. Standard: Geser SL ke +1% setelah profit 2%
+      2. Time-BE : Setelah 100 menit (≈20 bar M5) tanpa progress 0.5R → SL ke entry
+    """
+    import time as _time
     if coin not in active_positions: return
     p = active_positions[coin]
     if p.get('sl_moved'): return
@@ -648,26 +654,53 @@ def check_trailing_sl(coin):
         print(f"📭 {coin}: Posisi tutup.")
         del active_positions[coin]
         return
-    entry = p['entry']
-    side  = p['side']
+    entry    = p['entry']
+    side     = p['side']
+    sl_dist  = p.get('sl_dist', abs(entry - p['sl']))
     try:
         curr = float(pos['markPrice'])
     except:
         return
+
     if side == "Buy":
-        pnl_pct = (curr - entry) / entry * 100
+        pnl_pct  = (curr - entry) / entry * 100
+        progress = curr - entry           # pips in favor
+
+        # Standard: +2% profit → geser SL ke +1%
         if pnl_pct >= 2.0:
             new_sl = round(entry * 1.01, 8)
             if move_sl(coin, new_sl):
                 active_positions[coin]['sl_moved'] = True
                 print(f"🔒 {coin} LONG +{pnl_pct:.2f}% → SL ke +1% ({new_sl})")
+            return
+
+        # [v5.4b] Time-BE: setelah 100 menit tanpa progress 0.5R → BE
+        elapsed = _time.time() - p.get('entry_time', _time.time())
+        if elapsed >= 6000 and progress < sl_dist * 0.5:   # 100 menit = 6000 detik
+            new_sl = round(entry, 8)
+            if move_sl(coin, new_sl):
+                active_positions[coin]['sl_moved'] = True
+                print(f"⏱️ {coin} LONG Time-BE: {elapsed/60:.0f} mnt, progress {progress:.6f} < {sl_dist*0.5:.6f} → SL ke entry ({new_sl})")
+
     elif side == "Sell":
-        pnl_pct = (entry - curr) / entry * 100
+        pnl_pct  = (entry - curr) / entry * 100
+        progress = entry - curr
+
+        # Standard: +2% profit → geser SL ke -1%
         if pnl_pct >= 2.0:
             new_sl = round(entry * 0.99, 8)
             if move_sl(coin, new_sl):
                 active_positions[coin]['sl_moved'] = True
                 print(f"🔒 {coin} SHORT +{pnl_pct:.2f}% → SL ke -1% ({new_sl})")
+            return
+
+        # [v5.4b] Time-BE: setelah 100 menit tanpa progress 0.5R → BE
+        elapsed = _time.time() - p.get('entry_time', _time.time())
+        if elapsed >= 6000 and progress < sl_dist * 0.5:
+            new_sl = round(entry, 8)
+            if move_sl(coin, new_sl):
+                active_positions[coin]['sl_moved'] = True
+                print(f"⏱️ {coin} SHORT Time-BE: {elapsed/60:.0f} mnt, progress {progress:.6f} < {sl_dist*0.5:.6f} → SL ke entry ({new_sl})")
 
 
 # ============================================================
@@ -1089,6 +1122,26 @@ def run_bot():
                                     print(f"🗑️ {coin}: TP kena tanpa MSS."); del pending[coin]
                             continue
 
+                        # ─── [v5.4b] FIX #1: MSS CANDLE STRENGTH ────────────
+                        # Fast SL root cause: MSS dipicu candle lemah (wick/doji).
+                        # Candle MSS harus punya body >= 40% dari range (genuine momentum).
+                        mss_body  = abs(float(mss_candle['close']) - float(mss_candle['open']))
+                        mss_range = abs(float(mss_candle['high'])  - float(mss_candle['low']))
+                        if mss_range > 0 and mss_body / mss_range < 0.40:
+                            print(f"⚠️ {coin}: MSS candle terlalu lemah (body {mss_body/mss_range*100:.0f}% < 40%), skip.")
+                            del pending[coin]
+                            continue
+
+                        # ─── [v5.4b] FIX #2: VOLUME RATIO FILTER ────────────
+                        # Trades saat vol < 0.40× rata-rata = net negatif secara kolektif.
+                        mss_vol     = float(mss_candle.get('vol', 0))
+                        recent_vols = df_m5['vol'].tail(20)
+                        avg_vol     = recent_vols.mean()
+                        if avg_vol > 0 and mss_vol / avg_vol < 0.40:
+                            print(f"⚠️ {coin}: Volume MSS terlalu rendah ({mss_vol/avg_vol:.2f}x < 0.40x), skip.")
+                            del pending[coin]
+                            continue
+
                         # MSS confirmed — cari entry terbaik
                         # Prioritas: Breaker Block > FVG H1
                         side_order = "Buy" if stype == "Long" else "Sell"
@@ -1145,9 +1198,15 @@ def run_bot():
 
                         if place_limit_order(coin, side_order, entry_price, sl_price, final_tp):
                             print(f"✅ {coin}: ORDER TERPASANG!")
+                            import time as _time
                             active_positions[coin] = {
-                                'side': side_order, 'entry': entry_price,
-                                'sl': sl_price, 'tp': setup['tp'], 'sl_moved': False
+                                'side'       : side_order,
+                                'entry'      : entry_price,
+                                'sl'         : sl_price,
+                                'sl_dist'    : dist,
+                                'tp'         : setup['tp'],
+                                'sl_moved'   : False,
+                                'entry_time' : _time.time(),   # [v5.4b] untuk Time-BE
                             }
                             del pending[coin]
                         else:
