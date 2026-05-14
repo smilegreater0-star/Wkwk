@@ -353,7 +353,8 @@ def replay_m5(df, stype):
                 if c['low'] < candidate_low:
                     candidate_low = c['low']; candidate_high = c['high']
                     state = 'SINGLE_MOVE'; i += 1
-                elif c['high'] >= candidate_high * 0.9995:  # tolerance 0.05%
+                # Trigger jika: high wick menyentuh level, ATAU close sudah di atas level
+                elif c['high'] >= candidate_high * 0.9995 or float(c['close']) > candidate_high:
                     du = df.iloc[idm_start_idx:i+1]
                     return {
                         'phase': 'IDM_TOUCHED', 'idm_level': candidate_high,
@@ -378,7 +379,9 @@ def replay_m5(df, stype):
                 i += 1
 
             elif state == 'TUNGGU_SENTUH':
-                if c['low'] <= candidate_low * 1.0005:  # tolerance 0.05%
+                # Trigger jika: low wick menyentuh level, ATAU close sudah di bawah level
+                # (harga melewati dari atas ke bawah tanpa wick yang terdeteksi)
+                if c['low'] <= candidate_low * 1.0005 or float(c['close']) < candidate_low:
                     du = df.iloc[idm_start_idx:i+1]
                     return {
                         'phase': 'IDM_TOUCHED', 'idm_level': candidate_low,
@@ -386,7 +389,8 @@ def replay_m5(df, stype):
                         'freeze_ts': c['ts']
                     }
                 elif c['high'] > candidate_high:
-                    candidate_high = c['high']; candidate_low = c['low']
+                    # Reset state tapi JANGAN ubah candidate_low — IDM level tetap
+                    candidate_high = c['high']
                     state = 'SINGLE_MOVE'
                 i += 1
 
