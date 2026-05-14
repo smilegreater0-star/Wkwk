@@ -779,15 +779,15 @@ def replay_h1(coin, df_h1):
         fvg = gaps[fvg_idx]
 
         if phase == "WAIT_FVG_TOUCH":
-            if stype == "Long" and candle['close'] >= tp_val: return None
-            if stype == "Short" and candle['close'] <= tp_val: return None
+            if stype == "Long" and tp_val and candle['close'] >= tp_val: return None
+            if stype == "Short" and tp_val and candle['close'] <= tp_val: return None
             if fvg_fully_broken(candle, fvg, stype):
                 fvg_idx += 1; continue
             if candle_touches_fvg(candle, fvg, stype):
                 phase = "WAIT_IDM_TOUCH"; fvg_touch_ts = candle['ts']
         elif phase in ("WAIT_IDM_TOUCH", "WAIT_BOS_BREAK", "WAIT_MSS"):
-            if stype == "Long" and candle['close'] >= tp_val: return None
-            if stype == "Short" and candle['close'] <= tp_val: return None
+            if stype == "Long" and tp_val and candle['close'] >= tp_val: return None
+            if stype == "Short" and tp_val and candle['close'] <= tp_val: return None
 
     # Jika masih di WAIT_FVG_TOUCH, cari fvg_idx yang paling relevan:
     # skip semua FVG yang sudah dilewati harga
@@ -952,9 +952,9 @@ def run_bot():
                             pending[coin]['phase']        = "WAIT_IDM_TOUCH"
                             pending[coin]['fvg_touch_ts'] = closed_h1['ts']
                         else:
-                            if stype == "Long" and curr_h1['close'] >= setup['tp']:
+                            if stype == "Long" and setup['tp'] and curr_h1['close'] >= setup['tp']:
                                 print(f"🗑️ {coin}: TP kena sebelum FVG."); del pending[coin]
-                            elif stype == "Short" and curr_h1['close'] <= setup['tp']:
+                            elif stype == "Short" and setup['tp'] and curr_h1['close'] <= setup['tp']:
                                 print(f"🗑️ {coin}: TP kena sebelum FVG."); del pending[coin]
                         continue
 
@@ -982,9 +982,9 @@ def run_bot():
                                 print(f"⏳ {coin}: IDM M5 @ {idm_level} | Harga M5: {curr_m5['close']} | Menunggu sentuhan...")
                             else:
                                 print(f"⏳ {coin}: IDM M5 belum terbentuk | Harga M5: {curr_m5['close']}")
-                            if stype == "Long" and curr_m5['close'] >= setup['tp']:
+                            if stype == "Long" and setup['tp'] and curr_m5['close'] >= setup['tp']:
                                 print(f"🗑️ {coin}: TP kena tanpa IDM."); del pending[coin]
-                            elif stype == "Short" and curr_m5['close'] <= setup['tp']:
+                            elif stype == "Short" and setup['tp'] and curr_m5['close'] <= setup['tp']:
                                 print(f"🗑️ {coin}: TP kena tanpa IDM."); del pending[coin]
                             continue
 
@@ -1040,9 +1040,9 @@ def run_bot():
                             pending[coin]['idm_touched_val'] = None
                             pending[coin]['trigger_type']    = trigger
                         else:
-                            if stype == "Long" and curr_m5['close'] >= setup['tp']:
+                            if stype == "Long" and setup['tp'] and curr_m5['close'] >= setup['tp']:
                                 print(f"🗑️ {coin}: TP kena tanpa BOS/Sweep M5."); del pending[coin]
-                            elif stype == "Short" and curr_m5['close'] <= setup['tp']:
+                            elif stype == "Short" and setup['tp'] and curr_m5['close'] <= setup['tp']:
                                 print(f"🗑️ {coin}: TP kena tanpa BOS/Sweep M5."); del pending[coin]
                         continue
 
@@ -1090,9 +1090,9 @@ def run_bot():
 
                         if reset_to_idm or mss_candle is None:
                             if not reset_to_idm:
-                                if stype == "Long" and curr_m5['close'] >= setup['tp']:
+                                if stype == "Long" and setup['tp'] and curr_m5['close'] >= setup['tp']:
                                     print(f"🗑️ {coin}: TP kena tanpa MSS."); del pending[coin]
-                                elif stype == "Short" and curr_m5['close'] <= setup['tp']:
+                                elif stype == "Short" and setup['tp'] and curr_m5['close'] <= setup['tp']:
                                     print(f"🗑️ {coin}: TP kena tanpa MSS."); del pending[coin]
                             continue
 
