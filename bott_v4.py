@@ -568,11 +568,11 @@ def place_limit_order(symbol, side, entry, sl, tp):
             print(f"⚠️ {symbol}: TP ({tp}) ≥ entry ({entry}) untuk Short — skip.")
             return False
 
-        # [v5] FIX #2: Minimum R:R 2.0
+        # [v5.4b-1R] R:R check: TP sudah di-set ke 1R, hanya validasi minimal 0.8
         tp_dist = abs(tp - entry)
         rr_check = tp_dist / dist if dist > 0 else 0
-        if rr_check < 2.0:
-            print(f"⚠️ {symbol}: R:R terlalu rendah ({rr_check:.2f} < 2.0) — skip.")
+        if rr_check < 0.8:
+            print(f"⚠️ {symbol}: R:R sangat rendah ({rr_check:.2f} < 0.8) — skip.")
             return False
 
         raw_qty = risk_usd / dist
@@ -641,9 +641,11 @@ def move_sl(symbol, new_sl):
 
 def check_trailing_sl(coin):
     """
-    [v5.4b] Enhanced trailing SL:
-      1. Standard: Geser SL ke +1% setelah profit 2%
-      2. Time-BE : Setelah 100 menit (≈20 bar M5) tanpa progress 0.5R → SL ke entry
+    [v5.4b-1R] Time-Based Break-Even ONLY.
+    TP sudah di-set tepat di 1R — tidak perlu trailing kompleks.
+    Satu-satunya intervensi: jika setelah 100 menit harga tidak maju
+    minimal 0.5R, geser SL ke entry (exit breakeven = $0 loss).
+    Ini menyelamatkan slow SL yang nyaris BEtapi akhirnya loss.
     """
     import time as _time
     if coin not in active_positions: return
@@ -651,56 +653,32 @@ def check_trailing_sl(coin):
     if p.get('sl_moved'): return
     pos = get_open_position(coin)
     if pos is None:
-        print(f"📭 {coin}: Posisi tutup.")
+        print(f"📭 {coin}: Posisi tutup (TP/SL hit).")
         del active_positions[coin]
         return
-    entry    = p['entry']
-    side     = p['side']
-    sl_dist  = p.get('sl_dist', abs(entry - p['sl']))
+    entry   = p['entry']
+    side    = p['side']
+    sl_dist = p.get('sl_dist', abs(entry - p['sl']))
     try:
         curr = float(pos['markPrice'])
     except:
         return
 
+    elapsed = _time.time() - p.get('entry_time', _time.time())
+    if elapsed < 6000:   # Belum 100 menit → tidak ada aksi
+        return
+
     if side == "Buy":
-        pnl_pct  = (curr - entry) / entry * 100
-        progress = curr - entry           # pips in favor
-
-        # Standard: +2% profit → geser SL ke +1%
-        if pnl_pct >= 2.0:
-            new_sl = round(entry * 1.01, 8)
-            if move_sl(coin, new_sl):
-                active_positions[coin]['sl_moved'] = True
-                print(f"🔒 {coin} LONG +{pnl_pct:.2f}% → SL ke +1% ({new_sl})")
-            return
-
-        # [v5.4b] Time-BE: setelah 100 menit tanpa progress 0.5R → BE
-        elapsed = _time.time() - p.get('entry_time', _time.time())
-        if elapsed >= 6000 and progress < sl_dist * 0.5:   # 100 menit = 6000 detik
-            new_sl = round(entry, 8)
-            if move_sl(coin, new_sl):
-                active_positions[coin]['sl_moved'] = True
-                print(f"⏱️ {coin} LONG Time-BE: {elapsed/60:.0f} mnt, progress {progress:.6f} < {sl_dist*0.5:.6f} → SL ke entry ({new_sl})")
-
-    elif side == "Sell":
-        pnl_pct  = (entry - curr) / entry * 100
+        progress = curr - entry
+    else:
         progress = entry - curr
 
-        # Standard: +2% profit → geser SL ke -1%
-        if pnl_pct >= 2.0:
-            new_sl = round(entry * 0.99, 8)
-            if move_sl(coin, new_sl):
-                active_positions[coin]['sl_moved'] = True
-                print(f"🔒 {coin} SHORT +{pnl_pct:.2f}% → SL ke -1% ({new_sl})")
-            return
-
-        # [v5.4b] Time-BE: setelah 100 menit tanpa progress 0.5R → BE
-        elapsed = _time.time() - p.get('entry_time', _time.time())
-        if elapsed >= 6000 and progress < sl_dist * 0.5:
-            new_sl = round(entry, 8)
-            if move_sl(coin, new_sl):
-                active_positions[coin]['sl_moved'] = True
-                print(f"⏱️ {coin} SHORT Time-BE: {elapsed/60:.0f} mnt, progress {progress:.6f} < {sl_dist*0.5:.6f} → SL ke entry ({new_sl})")
+    # Time-BE: 100+ menit tanpa progress 0.5R → geser SL ke entry
+    if progress < sl_dist * 0.5:
+        new_sl = round(entry, 8)
+        if move_sl(coin, new_sl):
+            active_positions[coin]['sl_moved'] = True
+            print(f"⏱️ {coin} {side} Time-BE aktif: {elapsed/60:.0f} mnt | progress={progress:.6f} < {sl_dist*0.5:.6f} | SL → entry {new_sl}")
 
 
 # ============================================================
@@ -773,13 +751,9 @@ def replay_h1(coin, df_h1):
     if not gaps:
         return None
 
-    # [v5] Smart TP berbasis swing struktural
-    atr_snap = calc_atr(df_snap, 14).iloc[-1]
-    if pd.isna(atr_snap): atr_snap = df_snap['close'].iloc[-1] * 0.01
-    curr_close_snap = df_snap.iloc[-2]['close']
-    tp_val = calc_smart_tp(df_snap, bos_idx, stype, curr_close_snap, atr_snap)
-    # FIX #2: bos_ts sebagai anchor M5
-    bos_ts    = df_snap['ts'].iloc[bos_idx]
+    # [v5.4b-1R] tp_val = placeholder (TP dihitung ulang dari actual entry saat order)
+    bos_ts = df_snap['ts'].iloc[bos_idx]
+    tp_val = 0  # placeholder
 
     state = {
         'type': stype, 'df_h1': df_snap,
@@ -915,13 +889,9 @@ def run_bot():
                         pending[coin]['fvg_list'] = fresh_gaps
                     fvg_list = pending[coin]['fvg_list']
 
-                    # [v5] Smart TP refresh
-                    atr_live = calc_atr(df_h1_live, 14).iloc[-1]
-                    if pd.isna(atr_live): atr_live = curr_h1['close'] * 0.01
-                    curr_entry_approx = curr_h1['close']
-                    new_tp = calc_smart_tp(df_h1_live, bos_idx, stype, curr_entry_approx, atr_live)
-                    pending[coin]['tp'] = new_tp
-                    setup['tp']        = new_tp
+                    # [v5.4b-1R] TP placeholder tetap 0 sampai entry tahu harga actual
+                    pending[coin]['tp'] = 0
+                    setup['tp']        = 0
 
                     # Update fvg_idx: skip FVG yang sudah dilewati harga saat ini
                     if setup['phase'] == "WAIT_FVG_TOUCH":
@@ -1180,19 +1150,16 @@ def run_bot():
                             print(f"⚠️ {coin}: Entry = SL, skip.")
                             continue
 
-                        # [v5] Hitung Smart TP ulang pakai entry_price actual
-                        atr_entry = calc_atr(df_m5, 14).iloc[-1]
-                        if pd.isna(atr_entry): atr_entry = entry_price * 0.005
-                        df_h1_for_tp = pending[coin].get('df_h1', df_h1_live)
-                        bos_for_tp   = pending[coin].get('bos_idx', 0)
-                        smart_tp = calc_smart_tp(df_h1_for_tp, bos_for_tp, stype, entry_price, atr_entry * 12)
-
-                        # Fallback ke setup['tp'] kalau smart TP tidak valid
-                        final_tp = smart_tp
-                        if stype == "Long"  and (final_tp is None or final_tp <= entry_price):
-                            final_tp = setup.get('tp') or entry_price * 1.03
-                        if stype == "Short" and (final_tp is None or final_tp >= entry_price):
-                            final_tp = setup.get('tp') or entry_price * 0.97
+                        # [v5.4b-1R] TP = tepat 1R dari entry (full exit di 1R)
+                        # Backtest: +$4.75 (+15.8%), WR 57%, MaxDD -4.01%
+                        # TP lebih dekat → 37 dari 65 trade hit TP (vs 7 dengan SmartTP)
+                        tp_dist_1r = abs(entry_price - sl_price)
+                        if tp_dist_1r == 0:
+                            tp_dist_1r = entry_price * 0.005
+                        if stype == "Long":
+                            final_tp = round(entry_price + tp_dist_1r, 8)
+                        else:
+                            final_tp = round(entry_price - tp_dist_1r, 8)
 
                         print(f"🎯 {coin}: {side_order} @ {entry_price} | SL {sl_price} | TP {final_tp}")
 
