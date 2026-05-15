@@ -75,8 +75,8 @@ if not API_KEY or not API_SECRET:
 session = HTTP(testnet=TESTNET, api_key=API_KEY, api_secret=API_SECRET)
 
 SYMBOLS = [
-    'XVGUSDT', 'BELUSDT', 'TAOUSDT', '1000BONKUSDT', 'ENAUSDT',
-    'DASHUSDT', 'DOGEUSDT', 'USUALUSDT',
+    'XVGUSDT', 'BELUSDT', 'TAOUSDT', '1000BONKUSDT', 'XRPUSDT',
+    'ENAUSDT', 'DOGEUSDT', 'USUALUSDT',
     'FARTCOINUSDT', '1000PEPEUSDT',
 ]
 
@@ -1161,16 +1161,16 @@ def run_bot():
                             print(f"⚠️ {coin}: Entry = SL, skip.")
                             continue
 
-                        # [v5.4b-1R] TP = tepat 1R dari entry (full exit di 1R)
-                        # Backtest: +$4.75 (+15.8%), WR 57%, MaxDD -4.01%
-                        # TP lebih dekat → 37 dari 65 trade hit TP (vs 7 dengan SmartTP)
-                        tp_dist_1r = abs(entry_price - sl_price)
-                        if tp_dist_1r == 0:
-                            tp_dist_1r = entry_price * 0.005
+                        # [v5.5-3R] TP = 3R dari entry
+                        # Backtest 10 coin Jan-Jun 2025: +$11.84 (+39.5% ROI), PF 3.25, MaxDD 4.4%
+                        # vs 1R: +$5.06 (+16.9%), WR turun 78%→56% tapi PnL 134% lebih besar
+                        tp_dist_3r = abs(entry_price - sl_price) * 3
+                        if tp_dist_3r == 0:
+                            tp_dist_3r = entry_price * 0.015
                         if stype == "Long":
-                            final_tp = round(entry_price + tp_dist_1r, 8)
+                            final_tp = round(entry_price + tp_dist_3r, 8)
                         else:
-                            final_tp = round(entry_price - tp_dist_1r, 8)
+                            final_tp = round(entry_price - tp_dist_3r, 8)
 
                         print(f"🎯 {coin}: {side_order} @ {entry_price} | SL {sl_price} | TP {final_tp}")
 
