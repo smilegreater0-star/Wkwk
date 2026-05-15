@@ -736,18 +736,31 @@ def replay_h1(coin, df_h1):
         return None
 
     closed_h1 = df_h1.iloc[-2]
-    is_long  = closed_h1['close'] > sh_h1[-1]['val']
-    is_short = closed_h1['close'] < sl_h1[-1]['val']
+
+    # Coba last 3 swing kandidat — pilih paling baru yang valid
+    is_long = False; is_short = False
+    swing_val = None; bos_idx = None; ref_idx = None
+
+    for sh in sh_h1[-3:]:
+        if closed_h1['close'] > sh['val']:
+            is_long   = True
+            swing_val = sh['val']
+            ref_idx   = sl_h1[-1]['idx'] if sl_h1 else sh['idx']
+            bos_idx   = ref_idx
+
+    for sl in sl_h1[-3:]:
+        if closed_h1['close'] < sl['val']:
+            is_short  = True
+            swing_val = sl['val']
+            ref_idx   = sh_h1[-1]['idx'] if sh_h1 else sl['idx']
+            bos_idx   = ref_idx
+
     if not (is_long or is_short):
         return None
 
-    stype   = "Long" if is_long else "Short"
-    # ref_idx = indeks candle terakhir sebelum BOS (swing point yang dilanggar)
-    ref_idx = sl_h1[-1]['idx'] if is_long else sh_h1[-1]['idx']
-    # bos_idx = candle yang menutup melampaui swing → candle BOS itu sendiri
-    # Cari candle pertama setelah ref_idx yang close melampaui swing
-    swing_val = sh_h1[-1]['val'] if is_long else sl_h1[-1]['val']
-    bos_idx   = ref_idx  # index swing yang ditembus (deduplikasi)
+    stype = "Long" if is_long else "Short"
+    if swing_val is None or bos_idx is None:
+        return None
 
     # FIX #1: FVG hanya dari dalam range BOS
     df_snap = df_h1.copy()
@@ -759,12 +772,21 @@ def replay_h1(coin, df_h1):
     bos_ts = df_snap['ts'].iloc[bos_idx]
     tp_val = 0  # placeholder
 
+    # CHOCH level: kalau Long, pantau swing low terakhir sebelum BOS
+    # Kalau Short, pantau swing high terakhir sebelum BOS
+    # Ini adalah level yang kalau ditembus → struktur berbalik (CHOCH)
+    if stype == "Long":
+        choch_level = sl_h1[-1]['val'] if sl_h1 else None
+    else:
+        choch_level = sh_h1[-1]['val'] if sh_h1 else None
+
     state = {
         'type': stype, 'df_h1': df_snap,
         'fvg_list': gaps, 'fvg_idx': 0,
         'tp': tp_val, 'bos_ts': bos_ts,
         'bos_idx': bos_idx,
         'swing_val': swing_val,
+        'choch_level': choch_level,
         'phase': "WAIT_FVG_TOUCH", 'fvg_touch_ts': bos_ts,
         'm5_freeze_high': None, 'm5_freeze_low': None, 'm5_freeze_ts': None,
         'idm_list': [], 'idm_touched_val': None,
@@ -910,16 +932,36 @@ def run_bot():
                             pending[coin]['fvg_idx'] = new_idx
                             fvg_idx = new_idx
                         if fvg_idx >= len(fvg_list):
-                            # Semua FVG dilewati — jangan langsung hapus.
-                            # Reset fvg_idx ke 0 agar nunggu pullback ke FVG manapun.
-                            # TP check di h1_trend_broken yang akan cancel kalau TP kena.
+                            # Harga sudah melewati semua FVG — naik ke swing high baru.
+                            # BOS tetap valid. FVG baru akan terbentuk dari leg naik ini.
+                            # fresh_gaps sudah di-refresh dari H1 terbaru di atas,
+                            # jadi FVG list sudah termasuk FVG dari leg terbaru.
+                            # Reset ke FVG pertama yang masih valid (paling dekat harga).
                             pending[coin]['fvg_idx'] = 0
                             fvg_idx = 0
-                            print(f"⏳ {coin}: Harga di atas semua FVG, nunggu pullback...")
+                            new_fvg_count = len(fvg_list)
+                            # Update choch_level ke swing low terbaru (leg naik baru)
+                            if stype == "Long" and sl_h1:
+                                pending[coin]['choch_level'] = sl_h1[-1]['val']
+                            elif stype == "Short" and sh_h1:
+                                pending[coin]['choch_level'] = sh_h1[-1]['val']
+                            print(f"⏳ {coin}: Harga di atas semua FVG ({new_fvg_count} FVG tersedia). "
+                                  f"BOS tetap valid — nunggu pullback ke FVG terbaru. "
+                                  f"CHOCH level: {pending[coin].get('choch_level', '-')}")
 
-                    if h1_trend_broken(curr_h1, setup, sh_h1, sl_h1):
-                        print(f"🔄 {coin}: Harga melewati TP tanpa pullback. Setup batal.")
-                        del pending[coin]; continue
+                    # ── CEK CHOCH: pembalikan struktur → setup batal ──────
+                    # Jika swing low referensi BOS Long ditembus → CHOCH (Long batal)
+                    # Jika swing high referensi BOS Short ditembus → CHOCH (Short batal)
+                    choch_level = setup.get('choch_level')
+                    if choch_level:
+                        if stype == "Long" and curr_h1['close'] < choch_level:
+                            print(f"🔄 {coin}: CHOCH — swing low {choch_level:.6f} ditembus. "
+                                  f"BOS Long batal, struktur berganti Short.")
+                            del pending[coin]; continue
+                        if stype == "Short" and curr_h1['close'] > choch_level:
+                            print(f"🔄 {coin}: CHOCH — swing high {choch_level:.6f} ditembus. "
+                                  f"BOS Short batal, struktur berganti Long.")
+                            del pending[coin]; continue
 
                     # Timeout 24 jam sejak FVG disentuh
                     if setup['phase'] != "WAIT_FVG_TOUCH":
@@ -1108,8 +1150,8 @@ def run_bot():
                         # Candle MSS harus punya body >= 40% dari range (genuine momentum).
                         mss_body  = abs(float(mss_candle['close']) - float(mss_candle['open']))
                         mss_range = abs(float(mss_candle['high'])  - float(mss_candle['low']))
-                        if mss_range > 0 and mss_body / mss_range < 0.40:
-                            print(f"⚠️ {coin}: MSS candle terlalu lemah (body {mss_body/mss_range*100:.0f}% < 40%), skip.")
+                        if mss_range > 0 and mss_body / mss_range < 0.30:
+                            print(f"⚠️ {coin}: MSS candle terlalu lemah (body {mss_body/mss_range*100:.0f}% < 30%), skip.")
                             del pending[coin]
                             continue
 
@@ -1118,10 +1160,35 @@ def run_bot():
                         mss_vol     = float(mss_candle.get('vol', 0))
                         recent_vols = df_m5['vol'].tail(20)
                         avg_vol     = recent_vols.mean()
-                        if avg_vol > 0 and mss_vol / avg_vol < 0.40:
-                            print(f"⚠️ {coin}: Volume MSS terlalu rendah ({mss_vol/avg_vol:.2f}x < 0.40x), skip.")
+                        if avg_vol > 0 and mss_vol / avg_vol < 0.25:
+                            print(f"⚠️ {coin}: Volume MSS terlalu rendah ({mss_vol/avg_vol:.2f}x < 0.25x), skip.")
                             del pending[coin]
                             continue
+
+                        # ── ATR Filter Adaptif ──────────────────────────────
+                        ATR_THRESHOLD = {
+                            'FARTCOINUSDT' : 0.0056,
+                            'XVGUSDT'      : 0.0030,
+                            '1000PEPEUSDT' : 0.0031,
+                            'DOGEUSDT'     : 0.0024,
+                            '1000BONKUSDT' : 0.0035,
+                            'BELUSDT'      : 0.0035,
+                            'TAOUSDT'      : 0.0035,
+                            'USUALUSDT'    : 0.0035,
+                            'BERAUSDT'     : 0.0035,
+                        }
+                        atr_thresh = ATR_THRESHOLD.get(coin, 0.0035)
+                        df_atr_m5  = get_data(coin, "5", limit=20)
+                        if df_atr_m5 is not None and len(df_atr_m5) >= 5:
+                            hh = df_atr_m5['high']; ll = df_atr_m5['low']
+                            pc = df_atr_m5['close'].shift(1)
+                            tr = pd.concat([hh-ll, (hh-pc).abs(), (ll-pc).abs()], axis=1).max(axis=1)
+                            atr_m5_val = tr.mean()
+                            ref_price  = float(df_atr_m5['close'].iloc[-1])
+                            if ref_price > 0 and (atr_m5_val / ref_price) < atr_thresh:
+                                print(f"⚠️ {coin}: ATR {atr_m5_val/ref_price*100:.3f}%"
+                                      f" < threshold {atr_thresh*100:.2f}% — sideways, skip.")
+                                continue
 
                         # MSS confirmed — cari entry terbaik
                         # Prioritas: Breaker Block > FVG H1
@@ -1192,26 +1259,33 @@ def run_bot():
                             del pending[coin]
                     continue
 
-                # ── SCAN BOS H1 BARU ──────────────────────────────────
-                is_long  = closed_h1['close'] > sh_h1[-1]['val']
-                is_short = closed_h1['close'] < sl_h1[-1]['val']
-                if not (is_long or is_short): continue
+                # ── SCAN BOS H1 BARU — last 3 swing kandidat ──────────
+                is_long = False; is_short = False
+                swing_val = None; bos_idx = None; ref_idx = None
 
-                stype   = "Long" if is_long else "Short"
+                for sh in sh_h1[-3:]:
+                    if closed_h1['close'] > sh['val']:
+                        is_long   = True
+                        swing_val = sh['val']
+                        ref_idx   = sl_h1[-1]['idx'] if sl_h1 else sh['idx']
+                        bos_idx   = ref_idx
+                for sl in sl_h1[-3:]:
+                    if closed_h1['close'] < sl['val']:
+                        is_short  = True
+                        swing_val = sl['val']
+                        ref_idx   = sh_h1[-1]['idx'] if sh_h1 else sl['idx']
+                        bos_idx   = ref_idx
+
+                if not (is_long or is_short): continue
+                if swing_val is None or bos_idx is None: continue
+                stype = "Long" if is_long else "Short"
 
                 # [v5] FIX #3: TREND FILTER EMA50 H1
-                # Hanya Long kalau harga di atas EMA50, Short kalau di bawah
                 ema50 = calc_ema(df_h1_live['close'], 50).iloc[-1]
                 if stype == "Long"  and curr_h1['close'] < ema50:
                     continue
                 if stype == "Short" and curr_h1['close'] > ema50:
                     continue
-                ref_idx = sl_h1[-1]['idx'] if is_long else sh_h1[-1]['idx']
-
-                # bos_idx = index swing yang ditembus (untuk deduplikasi)
-                # Agar BOS yang sama tidak diproses ulang tiap loop
-                swing_val = sh_h1[-1]['val'] if is_long else sl_h1[-1]['val']
-                bos_idx   = ref_idx
 
                 df_h1_snap = df_h1_live.copy()
                 gaps = get_internal_gaps(df_h1_snap, stype, bos_idx)
