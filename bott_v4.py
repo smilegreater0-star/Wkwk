@@ -960,15 +960,22 @@ def run_bot():
 
                     # ── AMBIL DATA M5 ─────────────────────────────────
                     time.sleep(3)
-                    df_m5_live = get_data(coin, "5", limit=200)
+
+                    # Hitung limit dinamis: ambil candle dari anchor_ts sampai sekarang
+                    # 1 candle M5 = 5 menit = 300 detik
+                    anchor_ts = setup.get("fvg_touch_ts") or setup["bos_ts"]
+                    now_ms    = int(time.time() * 1000)
+                    elapsed_candles = max(100, int((now_ms - anchor_ts) / (5 * 60 * 1000)) + 50)
+                    m5_limit  = min(elapsed_candles, 1000)  # Bybit max 1000
+
+                    df_m5_live = get_data(coin, "5", limit=m5_limit)
                     if df_m5_live is None: continue
 
-                    # Anchor M5 dari fvg_touch_ts — IDM harus terbentuk SETELAH
-                    # FVG disentuh, bukan dari BOS yang bisa jauh ke belakang.
-                    anchor_ts = setup.get("fvg_touch_ts") or setup["bos_ts"]
-                    df_m5     = df_m5_live[df_m5_live["ts"] >= anchor_ts].reset_index(drop=True)
+                    # Slice dari anchor_ts agar replay_m5 punya konteks lengkap
+                    df_m5 = df_m5_live[df_m5_live["ts"] >= anchor_ts].reset_index(drop=True)
                     if len(df_m5) < 5:
-                        df_m5 = df_m5_live.tail(80).reset_index(drop=True)
+                        # anchor_ts terlalu lama (> limit), pakai semua data yang ada
+                        df_m5 = df_m5_live.reset_index(drop=True)
 
                     curr_m5 = df_m5.iloc[-2] if len(df_m5) >= 2 else df_m5.iloc[-1]
 
