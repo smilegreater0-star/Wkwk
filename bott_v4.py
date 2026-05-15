@@ -136,8 +136,8 @@ def get_data(symbol, interval, limit=200):
                 res['result']['list'],
                 columns=['ts','open','high','low','close','vol','turnover']
             )
-            df[['open','high','low','close','ts']] = \
-                df[['open','high','low','close','ts']].apply(pd.to_numeric)
+            df[['open','high','low','close','vol','turnover','ts']] = \
+                df[['open','high','low','close','vol','turnover','ts']].apply(pd.to_numeric)
             return df.iloc[::-1].reset_index(drop=True)
         print(f"⚠️ get_data {symbol} {interval}: {res.get('retMsg','')}")
         return None
