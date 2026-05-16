@@ -24,7 +24,7 @@ BOS H1 → EMA50 Filter → FVG Touch → IDM M5 → BOS/Sweep M5 → MSS → En
 | **Entry** | Breaker Block (prioritas) atau FVG fallback |
 
 **Risk Management:**
-- Risk per trade: **1% dari balance**
+- Risk per trade: **1% dari balance** (compound — naik/turun mengikuti balance)
 - TP: **3R** (3× jarak SL dari entry)
 - Leverage: otomatis sesuai limit coin, maks 10×
 - SL: ujung candle MSS atau Breaker Block
@@ -38,49 +38,79 @@ BOS H1 → EMA50 Filter → FVG Touch → IDM M5 → BOS/Sweep M5 → MSS → En
 
 ## 📊 Hasil Backtest — Full Year 2025
 
-**8 Coin | Modal $30 | Risk 1%/trade | TP 3R | ATR Filter Adaptif**
+> Modal $15 | Risk 1% compound | TP 3R | ATR Filter Adaptif  
+> Awal: risk $0.15/trade → akhir tahun: risk ~$2.41/trade
 
-| Coin | Trade | W | L | WR% | PnL | ROI% | PF | Max DD% |
-|------|------:|--:|--:|----:|----:|-----:|---:|--------:|
-| FARTCOINUSDT | 36 | 27 | 9 | 75% | +$28.60 | +95.3% | 7.87 | 2.2% |
-| TAOUSDT | 23 | 16 | 7 | 70% | +$13.10 | +43.7% | 5.68 | 2.4% |
-| 1000BONKUSDT | 24 | 15 | 9 | 62% | +$11.07 | +36.9% | 3.97 | 3.3% |
-| XVGUSDT | 13 | 9 | 4 | 69% | +$6.93 | +23.1% | 5.57 | 2.2% |
-| 1000PEPEUSDT | 20 | 11 | 9 | 55% | +$6.62 | +22.1% | 2.95 | 4.5% |
-| BELUSDT | 11 | 8 | 3 | 73% | +$6.24 | +20.8% | 6.47 | 2.3% |
-| USUALUSDT | 23 | 11 | 12 | 48% | +$5.42 | +18.1% | 2.18 | 3.5% |
-| DOGEUSDT | 13 | 6 | 7 | 46% | +$2.59 | +8.6% | 2.02 | 3.5% |
-| **TOTAL** | **163** | **103** | **60** | **63%** | **+$80.56** | **+268.5%** | **4.38** | — |
+**9 Coin | Full Year Jan–Des 2025**
+
+| Coin | Trade | W | L | WR% | PnL ($) | ROI% | PF | MDD% |
+|------|------:|--:|--:|----:|--------:|-----:|---:|-----:|
+| FARTCOINUSDT | 36 | 27 | 9 | 75% | +$69.38 | +462.6% | 12.14 | 4.7% |
+| TAOUSDT | 23 | 16 | 7 | 70% | +$40.58 | +270.5% | 9.50 | 7.3% |
+| 1000BONKUSDT | 24 | 15 | 9 | 62% | +$27.65 | +184.4% | 3.80 | 12.9% |
+| XVGUSDT | 13 | 9 | 4 | 69% | +$25.72 | +171.5% | 7.81 | 13.6% |
+| BELUSDT | 11 | 8 | 3 | 73% | +$19.97 | +133.1% | 7.19 | 7.4% |
+| USUALUSDT | 23 | 11 | 12 | 48% | +$16.29 | +108.6% | 2.62 | 12.8% |
+| 1000PEPEUSDT | 20 | 11 | 9 | 55% | +$15.67 | +104.4% | 2.61 | 14.5% |
+| DOGEUSDT | 13 | 6 | 7 | 46% | +$8.14 | +54.3% | 1.98 | 25.3% |
+| 1000FLOKIUSDT | 24 | 11 | 13 | 46% | +$2.54 | +17.0% | 1.17 | 30.1% |
+| **TOTAL** | **187** | **114** | **73** | **61%** | **+$225.96** | **+1506.4%** | **4.17** | — |
 
 ### Statistik Gabungan
 
 | Metrik | Nilai |
 |--------|------:|
-| Modal Awal | $30.00 |
-| Final Balance | **$110.56** |
-| Total Trade | 163 |
-| Win Rate | **63.2%** |
-| Total PnL | **+$80.56** |
-| ROI Setahun | **+268.5%** |
-| Avg Win / trade | +$1.014 |
-| Avg Loss / trade | −$0.398 |
-| Profit Factor | **4.38** |
-| Expectancy / trade | **+$0.494** |
-| Max Consecutive Loss | 4 |
+| Modal Awal | $15.00 |
+| Final Balance | **$240.96** |
+| Total Trade | 187 |
+| Win Rate | **61.0%** |
+| Total PnL | **+$225.96** |
+| ROI Setahun | **+1506.4%** |
+| Avg Win / trade | +$2.61 |
+| Avg Loss / trade | −$0.98 |
+| Profit Factor | **4.17** |
+| Expectancy / trade | **+$1.21** |
+| Max Drawdown (portfolio) | **6.3%** |
+| Max Consecutive Loss | 5 |
+
+### Pertumbuhan per Kuartal
+
+| Kuartal | Trade | WR% | PnL ($) | ROI Kuartal | Bal Awal | Bal Akhir | MDD% |
+|---------|------:|----:|--------:|:-----------:|:--------:|:---------:|-----:|
+| Q1 | 59 | 63% | +$20.11 | +134.1% | $15.00 | $35.11 | 5.2% |
+| Q2 | 50 | 54% | +$24.95 | +71.1% | $35.11 | $60.06 | 5.0% |
+| Q3 | 31 | 65% | +$44.94 | +74.8% | $60.06 | $105.00 | 4.2% |
+| Q4 | 47 | 64% | +$135.96 | +129.5% | $105.00 | $240.96 | 5.4% |
+
+> Q4 paling eksplosif (+$135.96) karena balance sudah besar — efek compound bekerja penuh.
 
 ### Long vs Short
 
-| Arah | Trade | WR% | PnL |
-|------|------:|----:|----:|
-| Long | 76 | 68.4% | +$42.40 |
-| Short | 87 | 58.6% | +$38.17 |
+| Arah | Trade | WR% | PnL ($) |
+|------|------:|----:|--------:|
+| Long | 91 | 64.8% | +$119.76 |
+| Short | 96 | 57.3% | +$106.20 |
+
+### Equity Milestones
+
+| Target | Tercapai | Trade ke- |
+|-------:|:--------:|:---------:|
+| $20 | 27 Jan 2025 | #13 |
+| $25 | 12 Feb 2025 | #30 |
+| $30 | 25 Feb 2025 | #40 |
+| $40 | 8 Mei 2025 | #77 |
+| $50 | 6 Jun 2025 | #96 |
+| $75 | 24 Jul 2025 | #120 |
+| $100 | 30 Agt 2025 | #138 |
+| $240 | 31 Des 2025 | #187 |
 
 ### Catatan Coin
 
-- **FARTCOINUSDT** — coin terbaik, 36 trade, WR 75%, PF 7.87. Volatilitas tinggi dan trending sangat cocok dengan strategi SMC.
-- **TAOUSDT & BELUSDT** — paling konsisten, MDD rendah (2.3–2.4%), PF tinggi (5.6–6.5).
-- **DOGEUSDT & USUALUSDT** — WR di bawah 50% tapi tetap profit karena Avg Win:Avg Loss ratio 2.5:1.
-- **ENAUSDT** — dikeluarkan: bearish 3 dari 4 kuartal 2025, ATR tinggi justru choppy (bukan trending).
+- **FARTCOINUSDT** — coin terbaik, 36 trade, WR 75%, PF 12.14. Volatilitas tinggi dan trending cocok dengan SMC.
+- **TAOUSDT & BELUSDT** — paling konsisten, MDD rendah, PF tinggi (7–9.5).
+- **DOGEUSDT, USUALUSDT & 1000FLOKIUSDT** — WR di bawah 50% tapi tetap profit karena Avg Win ≈ 2.3× Avg Loss.
+- **1000FLOKIUSDT** — ATR median 0.402%, threshold 0.30%. Q1 dan Q3 bagus (WR 67–60%), Q4 lemah karena crash −51.7%.
+- **ENAUSDT** — dikeluarkan: bearish 3 dari 4 kuartal, ATR tinggi justru choppy (bukan trending).
 
 ---
 
@@ -93,10 +123,11 @@ Setiap coin punya threshold ATR minimum berbeda sesuai karakter volatilitasnya:
 | FARTCOINUSDT | 0.56% | 0.78% | 75% waktu |
 | XVGUSDT | 0.30% | 0.42% | 75% waktu |
 | 1000PEPEUSDT | 0.31% | 0.41% | 75% waktu |
+| 1000FLOKIUSDT | 0.30% | 0.40% | 75% waktu |
 | DOGEUSDT | 0.24% | 0.33% | 75% waktu |
 | Lainnya (default) | 0.35% | — | — |
 
-Filter ini mencegah entry saat market sideways/momentum lemah.
+Filter ini mencegah entry saat market sideways/momentum lemah. Threshold ditetapkan di P25 ATR historis masing-masing coin.
 
 ---
 
@@ -134,6 +165,18 @@ Railway otomatis deploy saat push ke GitHub. Bot berjalan sebagai **worker**.
 
 ```
 https://<nama-project>.up.railway.app/logs
+```
+
+---
+
+## ⚙️ Daftar Coin
+
+```python
+SYMBOLS = [
+    'XVGUSDT', 'BELUSDT', 'TAOUSDT', '1000BONKUSDT', 'BERAUSDT',
+    'DOGEUSDT', 'USUALUSDT',
+    'FARTCOINUSDT', '1000PEPEUSDT', '1000FLOKIUSDT',
+]
 ```
 
 ---
