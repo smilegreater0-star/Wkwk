@@ -1,7 +1,6 @@
 # 🤖 SMC Trading Bot v4
 
-Bot trading otomatis berbasis **Smart Money Concepts (SMC)** untuk Bybit Futures (USDT Perpetual).  
-Deploy di [Railway](https://railway.app) — isi API key, langsung jalan.
+Bot trading otomatis berbasis **Smart Money Concepts (SMC)** untuk Bybit Futures (USDT Perpetual).
 
 ---
 
@@ -11,134 +10,90 @@ Deploy di [Railway](https://railway.app) — isi API key, langsung jalan.
 BOS H1 → EMA50 Filter → FVG Touch → IDM M5 → BOS/Sweep M5 → MSS → Entry
 ```
 
-| Langkah | Keterangan |
-|---------|-----------|
-| **BOS H1** | Break of Structure timeframe 1 jam sebagai bias arah |
-| **EMA50 Filter** | Harga harus di atas EMA50 (Long) atau di bawah (Short) |
-| **FVG H1** | Fair Value Gap sebagai zona pullback |
-| **IDM M5** | Inducement M5 — konfirmasi likuiditas diambil |
-| **BOS/Sweep M5** | Konfirmasi pergerakan M5 setelah IDM |
-| **MSS** | Market Structure Shift — sinyal entry final |
-| **Entry** | Breaker Block (prioritas) atau FVG fallback |
-
 **Risk Management:**
-- Risk per trade: **1% dari balance** (compound — tiap trade risk ikut balance live saat itu)
+- Risk per trade: **1% dari balance** (compound — tiap trade risk ikut balance live)
 - TP: **3R** (3× jarak SL dari entry)
 - Leverage: otomatis sesuai limit coin, maks 10×
-- SL: ujung candle MSS atau Breaker Block
-
-**Pembatalan Setup (CHOCH):**
-- BOS Long → harga tutup di bawah swing low referensi → setup batal
-- BOS Short → harga tutup di atas swing high referensi → setup batal
 
 ---
 
 ## 📊 Hasil Backtest — Full Year 2025
 
-> Modal $10 | Risk 1%/trade compound | TP 3R | ATR Filter Adaptif  
-> **18 Coin | Data Bybit Perpetual USDT | M5 + H1 | Jan–Des 2025**
+> Modal $10 | Risk 1%/trade compound (1 pot bersama) | TP 3R | ATR Filter Adaptif
+> _22 Coin | Data Bybit Perpetual USDT | M5+H1 | Jan–Des 2025_
+> _(Generated: 2026-05-17)_
 
-### Per Coin
+### Per Coin (diurutkan PnL terbesar)
 
-| Coin | Trade | W | L | WR% | PnL Compound | MaxDD% | PF | ATR P25 |
-|------|------:|--:|--:|----:|-------------:|-------:|---:|--------:|
-| EIGENUSDT | 38 | 25 | 13 | 65.8% | +$4,236.22 | 4.6% | 4.96 | 0.0037 |
-| FARTCOINUSDT | 50 | 34 | 16 | 68.0% | +$3,448.10 | 4.5% | 5.19 | 0.0056 |
-| BERAUSDT | 31 | 21 | 10 | 67.7% | +$3,356.16 | 3.5% | 5.10 | 0.0032 |
-| TAOUSDT | 23 | 15 | 8 | 65.2% | +$2,937.63 | 4.5% | 4.73 | 0.0032 |
-| AVAXUSDT | 18 | 12 | 6 | 66.7% | +$2,802.83 | 2.3% | 4.80 | 0.0025 |
-| PENGUUSDT | 40 | 31 | 9 | 77.5% | +$2,606.85 | 4.6% | 7.19 | 0.0040 |
-| USUALUSDT | 33 | 18 | 15 | 54.5% | +$2,306.61 | 6.7% | 2.84 | 0.0034 |
-| XVGUSDT | 24 | 13 | 11 | 54.2% | +$2,244.74 | 4.7% | 2.81 | 0.0030 |
-| LINKUSDT | 25 | 15 | 10 | 60.0% | +$1,747.00 | 4.7% | 3.62 | 0.0025 |
-| BELUSDT | 21 | 16 | 5 | 76.2% | +$1,375.16 | 2.4% | 7.18 | 0.0024 |
-| SUIUSDT | 22 | 16 | 6 | 72.7% | +$1,006.84 | 2.4% | 5.69 | 0.0029 |
-| WIFUSDT | 28 | 16 | 12 | 57.1% | +$901.59 | 4.6% | 3.16 | 0.0038 |
-| ONDOUSDT | 22 | 17 | 5 | 77.3% | +$763.48 | 3.4% | 7.63 | 0.0027 |
-| 1000BONKUSDT | 28 | 18 | 10 | 64.3% | +$644.72 | 3.3% | 4.37 | 0.0035 |
-| 1000PEPEUSDT | 21 | 14 | 7 | 66.7% | +$625.52 | 2.3% | 4.75 | 0.0031 |
-| ORCAUSDT | 21 | 13 | 8 | 61.9% | +$623.95 | 2.2% | 3.81 | 0.0024 |
-| VIRTUALUSDT | 25 | 19 | 6 | 76.0% | +$474.37 | 2.3% | 7.45 | 0.0040 |
-| PNUTUSDT | 31 | 18 | 13 | 58.1% | +$32.56 | 3.4% | 3.29 | 0.0036 |
-| **TOTAL** | **501** | **331** | **170** | **66.1%** | **+$32,134.34** | — | — | — |
+| Coin | Trade | WR% | PnL ($) | ROI% | MaxDD% | PF | ATR P25 |
+|------|------:|----:|--------:|-----:|-------:|---:|--------:|
+| PENGUUSDT | 60 | 53% | +$3967.71 | +39677% | 7.6% | 2.81 | 0.0040 |
+| USUALUSDT | 50 | 42% | +$3190.72 | +31907% | 8.2% | 1.81 | 0.0034 |
+| DOGEUSDT | 34 | 56% | +$2550.20 | +25502% | 5.7% | 3.17 | 0.0024 |
+| VIRTUALUSDT | 58 | 48% | +$2332.43 | +23324% | 5.5% | 2.27 | 0.0040 |
+| 1000BONKUSDT | 57 | 58% | +$2237.77 | +22378% | 3.6% | 3.02 | 0.0035 |
+| SHIB1000USDT | 35 | 43% | +$2089.62 | +20896% | 8.9% | 1.81 | 0.0020 |
+| NEARUSDT | 44 | 45% | +$2088.24 | +20882% | 5.1% | 2.05 | 0.0029 |
+| EIGENUSDT | 55 | 42% | +$1631.44 | +16314% | 12.1% | 1.82 | 0.0037 |
+| XVGUSDT | 46 | 43% | +$1532.66 | +15327% | 5.7% | 1.90 | 0.0030 |
+| ARBUSDT | 43 | 44% | +$1411.16 | +14112% | 6.6% | 1.89 | 0.0028 |
+| PNUTUSDT | 60 | 55% | +$1395.34 | +13953% | 7.8% | 2.88 | 0.0036 |
+| STORJUSDT | 30 | 43% | +$1269.14 | +12691% | 3.9% | 1.83 | 0.0017 |
+| BERAUSDT | 51 | 45% | +$1255.92 | +12559% | 3.5% | 1.96 | 0.0032 |
+| 1000PEPEUSDT | 58 | 41% | +$1107.84 | +11078% | 7.5% | 1.72 | 0.0031 |
+| BELUSDT | 38 | 37% | +$1058.40 | +10584% | 5.1% | 1.44 | 0.0024 |
+| ADAUSDT | 30 | 40% | +$772.22 | +7722% | 5.3% | 1.58 | 0.0025 |
+| ONDOUSDT | 41 | 39% | +$298.28 | +2983% | 5.7% | 1.54 | 0.0027 |
+| LINKUSDT | 32 | 41% | +$285.04 | +2850% | 4.6% | 1.63 | 0.0025 |
+| WIFUSDT | 74 | 43% | +$207.96 | +2080% | 7.5% | 1.78 | 0.0038 |
+| ORCAUSDT | 36 | 36% | +$99.21 | +992% | 10.9% | 1.39 | 0.0024 |
+| ENAUSDT | 70 | 37% | +$0.46 | +5% | 6.9% | 1.43 | 0.0039 |
+| AVAXUSDT | 33 | 48% | $-104.71 | -1047% | 6.3% | 2.15 | 0.0025 |
+| **TOTAL** | **1035** | **45%** | **+$30677.08** | **+306771%** | — | **293.99** | — |
 
-**$10.00 → $32,144.34 dalam setahun (+321,343% ROI)**
 
-> _PnL Compound = kontribusi tiap coin ke 1 pot bersama (risk 1% dari balance live per trade).  
-> Ini sama persis dengan cara bot live bekerja: tiap trade, risk ikut balance Bybit saat itu._
-
-### Statistik Gabungan
-
-| Metrik | Nilai |
-|--------|------:|
-| Modal Awal | $10.00 |
-| Final Balance | **$32,144.34** |
-| Total Trade | 501 |
-| Win Rate | **66.1%** |
-| Total PnL | **+$32,134.34** |
-| ROI Setahun | **+321,343%** |
-| Max Drawdown (per coin) | maks 6.7% |
+**$10.00 → $30687.08 dalam setahun (+306771% ROI)**
 
 ### Per Kuartal
 
-| Kuartal | Trade | WR% | PnL ($) | Bal Awal | Bal Akhir |
-|---------|------:|----:|--------:|:--------:|:---------:|
-| Q1 | 147 | 68% | +$109.83 | $10.00 | $119.83 |
-| Q2 | 141 | 70% | +$1,346.19 | $119.83 | $1,466.02 |
-| Q3 | 99 | 57% | +$3,515.23 | $1,466.02 | $4,981.25 |
-| Q4 | 114 | 67% | +$27,163.09 | $4,981.25 | $32,144.34 |
+| Kuartal | Trade | WR% | PnL | ROI Kuartal | Bal Awal → Akhir |
+|---------|------:|----:|----:|:-----------:|:----------------:|
+| Q1 | 270 | 40% | +$39.72 | +397.2% | $10.00 → $49.72 |
+| Q2 | 279 | 54% | +$1095.92 | +2204.2% | $49.72 → $1145.64 |
+| Q3 | 244 | 43% | +$4922.37 | +429.7% | $1145.64 → $6068.01 |
+| Q4 | 242 | 42% | +$24619.07 | +405.7% | $6068.01 → $30687.08 |
 
-> Balance per kuartal = semua trade diurutkan waktu, risk 1% dari balance berjalan.  
-> Ini cara kerja bot live yang sesungguhnya — tiap trade, risk ikut balance Bybit saat itu.
+### Konfigurasi
 
----
-
-## 🔧 ATR Filter Adaptif
-
-Setiap coin punya threshold ATR minimum berbeda (P25 ATR historis = 75% waktu lolos filter):
-
-| Coin | Threshold |
-|------|:---------:|
-| FARTCOINUSDT | 0.56% |
-| PENGUUSDT / VIRTUALUSDT | 0.40% |
-| WIFUSDT | 0.38% |
-| EIGENUSDT | 0.37% |
-| PNUTUSDT | 0.36% |
-| 1000BONKUSDT | 0.35% |
-| USUALUSDT | 0.34% |
-| BERAUSDT / TAOUSDT | 0.32% |
-| 1000PEPEUSDT | 0.31% |
-| XVGUSDT | 0.30% |
-| SUIUSDT | 0.29% |
-| ONDOUSDT | 0.27% |
-| LINKUSDT / AVAXUSDT | 0.25% |
-| BELUSDT / ORCAUSDT | 0.24% |
+| Parameter | Nilai |
+|-----------|-------|
+| Modal Awal | $10 |
+| Risk per Trade | 1% balance (compound) |
+| TP | 3R |
+| Leverage | maks 10× |
+| Fee | 0.055%/sisi (Bybit taker) |
+| ATR Filter | P25 per coin |
+| Min RR | 2.8 |
+| Min SL distance | 0.5% |
 
 ---
 
-## ⚙️ Daftar Coin (18 coin aktif)
+## ⚙️ Daftar Coin (22 coin aktif)
 
 ```python
-SYMBOLS = [
-    'XVGUSDT', 'BELUSDT', 'TAOUSDT', '1000BONKUSDT', 'BERAUSDT',
-    'USUALUSDT',
-    'FARTCOINUSDT', '1000PEPEUSDT',
-    'WIFUSDT', 'PENGUUSDT', 'PNUTUSDT',
-    'SUIUSDT', 'AVAXUSDT', 'ONDOUSDT', 'EIGENUSDT',
-    'LINKUSDT',
-    'VIRTUALUSDT', 'ORCAUSDT',
-]
+SYMBOLS = ['XVGUSDT', 'BELUSDT', '1000BONKUSDT', 'BERAUSDT', 'USUALUSDT', '1000PEPEUSDT', 'WIFUSDT', 'PENGUUSDT', 'PNUTUSDT', 'AVAXUSDT', 'ONDOUSDT', 'EIGENUSDT', 'LINKUSDT', 'VIRTUALUSDT', 'ORCAUSDT', 'DOGEUSDT', 'ARBUSDT', 'NEARUSDT', 'STORJUSDT', 'ENAUSDT', 'ADAUSDT', 'SHIB1000USDT']
 ```
 
-### Coin yang Tidak Dimasukkan
+## Catatan
 
-| Coin | Alasan |
-|------|--------|
-| JUPUSDT | WR 48.4%, PF 2.16, MaxDD 7.9% — compound negatif |
-| WLDUSDT | WR 48.1%, PF 2.34, MaxDD 7.7% — WR di bawah 50% |
-| DOGEUSDT | WR 46%, PF 2.02 — profit tapi weak |
+Ini adalah backtest **khusus coin yang sebelumnya dibuang**, diuji ulang dengan strategi **Recursive IDM**
+(IDM#1 → mandatory BOS → IDM#2 dalam BOS → WAIT_MSS → entry atau BOS lagi).
+
+| Coin | Alasan Dibuang (strategi lama) |
+|------|-------------------------------|
+| DOGEUSDT | WR 46%, PF 2.02 — dianggap lemah |
 | 1000FLOKIUSDT | WR 45.8%, PF 1.92 — borderline |
-| ENAUSDT | Bearish 3/4 kuartal, ATR tinggi tapi choppy |
+| ENAUSDT | Bearish 3/4 kuartal, choppy |
 | INJUSDT | WR 40.7%, PF 1.62 |
 | ICPUSDT | Hanya 9 trade/tahun |
 | ARBUSDT | WR 40%, PF 1.57 |
@@ -146,36 +101,22 @@ SYMBOLS = [
 | ADAUSDT | 9 trade/tahun |
 | STORJUSDT | 5 trade/tahun |
 | NEARUSDT | WR 44% |
+| SHIB1000USDT | Ditest di run ini dengan symbol yang benar |
 
 ---
 
 ## 🚀 Deploy ke Railway
 
-### Set Environment Variables
+Set environment variables:
 
-| Variable | Wajib | Keterangan |
-|----------|:-----:|-----------|
-| `API_KEY` | ✅ | Bybit API Key (permission: Trade + Read) |
-| `API_SECRET` | ✅ | Bybit API Secret |
-| `TESTNET` | ❌ | `true` untuk testnet, default `false` |
+| Variable | Keterangan |
+|----------|-----------|
+| `API_KEY` | Bybit API Key (permission: Trade + Read) |
+| `API_SECRET` | Bybit API Secret |
+| `TESTNET` | `true` untuk testnet, default `false` |
 
-### Monitoring Log
-
-```
-https://<nama-project>.up.railway.app/logs
-```
+Log monitoring: `https://<project>.up.railway.app/logs`
 
 ---
 
-## 📦 Dependencies
-
-```
-pandas>=2.0
-numpy>=1.24
-pybit>=5.0
-```
-
----
-
-> ⚠️ **Disclaimer**: Bot ini untuk keperluan pribadi. Trading crypto mengandung risiko tinggi.  
-> Hasil backtest tidak menjamin performa di masa depan.
+> ⚠️ Hasil backtest tidak menjamin performa di masa depan. Trading crypto mengandung risiko tinggi.
