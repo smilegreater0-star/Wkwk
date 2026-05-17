@@ -75,13 +75,14 @@ if not API_KEY or not API_SECRET:
 session = HTTP(testnet=TESTNET, api_key=API_KEY, api_secret=API_SECRET)
 
 SYMBOLS = [
-    'XVGUSDT', 'BELUSDT', 'TAOUSDT', '1000BONKUSDT', 'BERAUSDT',
-    'USUALUSDT',
-    'FARTCOINUSDT', '1000PEPEUSDT',
-    'WIFUSDT', 'PENGUUSDT', 'PNUTUSDT',
-    'SUIUSDT', 'AVAXUSDT', 'ONDOUSDT', 'EIGENUSDT',
-    'LINKUSDT',
-    'VIRTUALUSDT', 'ORCAUSDT',
+    # Core (dari backtest run 1)
+    'XVGUSDT', 'BELUSDT', '1000BONKUSDT', 'BERAUSDT', 'USUALUSDT',
+    '1000PEPEUSDT', 'WIFUSDT', 'PENGUUSDT', 'PNUTUSDT',
+    'AVAXUSDT', 'ONDOUSDT', 'EIGENUSDT', 'LINKUSDT', 'VIRTUALUSDT', 'ORCAUSDT',
+    # Rehabilitasi (dari backtest run 2 — recursive IDM)
+    'DOGEUSDT', 'ARBUSDT', 'NEARUSDT', 'STORJUSDT', 'ENAUSDT', 'ADAUSDT',
+    # Baru
+    'SHIB1000USDT',
 ]
 
 
@@ -1068,11 +1069,20 @@ def run_bot():
                         freeze_low  = m5_state['freeze_low']
                         freeze_ts   = m5_state['freeze_ts']
 
-                        print(f"💧 {coin}: IDM tersentuh @ {idm_level}")
-                        print(f"   → Target BOS M5: {freeze_low if stype=='Long' else freeze_high}")
-                        print(f"   → Target MSS   : {freeze_high if stype=='Long' else freeze_low}")
+                        # IDM#1 (inner_idm absent) → wajib BOS dulu → WAIT_BOS_BREAK
+                        # IDM#2+ (inner_idm=True) → langsung bisa MSS → WAIT_MSS
+                        next_phase = "WAIT_MSS" if setup.get('inner_idm') else "WAIT_BOS_BREAK"
 
-                        pending[coin]['phase']           = "WAIT_BOS_BREAK"
+                        if next_phase == "WAIT_BOS_BREAK":
+                            print(f"💧 {coin}: IDM#1 tersentuh @ {idm_level} → tunggu BOS M5 dulu.")
+                            print(f"   → Target BOS M5: {freeze_low if stype=='Long' else freeze_high}")
+                        else:
+                            print(f"💧 {coin}: IDM dalam BOS tersentuh @ {idm_level} → bisa MSS atau BOS lagi.")
+                            print(f"   → Target BOS M5: {freeze_low if stype=='Long' else freeze_high}")
+                            print(f"   → Target MSS   : {freeze_high if stype=='Long' else freeze_low}")
+
+                        pending[coin]['phase']           = next_phase
+                        pending[coin]['inner_idm']       = True
                         pending[coin]['idm_touched_val'] = idm_level
                         pending[coin]['m5_freeze_high']  = freeze_high
                         pending[coin]['m5_freeze_low']   = freeze_low
@@ -1085,13 +1095,13 @@ def run_bot():
                         freeze_high = setup['m5_freeze_high']
                         freeze_ts   = setup['m5_freeze_ts']
 
+                        # IDM pertama: wajib BOS dulu sebelum bisa entry
                         if stype == "Long":
-                            print(f"⏳ {coin}: Nunggu BOS/Sweep M5 < {freeze_low:.6f} | Harga: {curr_m5['close']}")
+                            print(f"⏳ {coin}: Nunggu BOS/Sweep M5 < {freeze_low:.6f} | MSS: {freeze_high:.6f} | Harga: {curr_m5['close']}")
                         else:
-                            print(f"⏳ {coin}: Nunggu BOS/Sweep M5 > {freeze_high:.6f} | Harga: {curr_m5['close']}")
+                            print(f"⏳ {coin}: Nunggu BOS/Sweep M5 > {freeze_high:.6f} | MSS: {freeze_low:.6f} | Harga: {curr_m5['close']}")
 
                         # Pastikan BOS M5 hanya dicari SETELAH fvg_touch_ts
-                        # Mencegah BOS M5 historis (sebelum FVG disentuh) ikut trigger
                         fvg_ts_anchor = setup.get('fvg_touch_ts') or setup['bos_ts']
                         df_m5_fresh   = df_m5[df_m5['ts'] >= fvg_ts_anchor].reset_index(drop=True)
                         result = check_bos_or_sweep(df_m5_fresh, freeze_high, freeze_low, freeze_ts, stype)
@@ -1103,17 +1113,21 @@ def run_bot():
                             new_fl     = result['nfl']
 
                             if trigger == 'bos':
-                                print(f"📉 {coin}: BOS M5 terkonfirmasi @ [{trigger_ts}]. Masuk WAIT_MSS.")
+                                print(f"📉 {coin}: BOS M5 @ [{trigger_ts}] — cari IDM baru [{new_fl:.6g}–{new_fh:.6g}].")
                             else:
                                 sweep_val = result.get('sweep_low') or result.get('sweep_high')
-                                print(f"💫 {coin}: SWEEP M5 @ {sweep_val:.6f} (struktur kuat). Masuk WAIT_MSS.")
+                                print(f"💫 {coin}: SWEEP M5 @ {sweep_val:.6f} — cari IDM baru [{new_fl:.6g}–{new_fh:.6g}].")
 
-                            pending[coin]['phase']           = "WAIT_MSS"
-                            pending[coin]['m5_freeze_high']  = new_fh
-                            pending[coin]['m5_freeze_low']   = new_fl
-                            pending[coin]['m5_freeze_ts']    = trigger_ts
-                            pending[coin]['idm_touched_val'] = None
-                            pending[coin]['trigger_type']    = trigger
+                            # Setelah BOS terbentuk → cari IDM baru di dalam range BOS
+                            # IDM baru tersentuh nanti → baru bisa MSS (entry) atau BOS lagi
+                            pending[coin].update({
+                                'phase'          : "WAIT_IDM_TOUCH",
+                                'fvg_touch_ts'   : trigger_ts,
+                                'm5_freeze_high' : new_fh,
+                                'm5_freeze_low'  : new_fl,
+                                'm5_freeze_ts'   : trigger_ts,
+                                'idm_touched_val': None,
+                            })
                         else:
                             if stype == "Long" and setup['tp'] and curr_m5['close'] >= setup['tp']:
                                 print(f"🗑️ {coin}: TP kena tanpa BOS/Sweep M5."); del pending[coin]
@@ -1193,24 +1207,28 @@ def run_bot():
 
                         # ── ATR Filter Adaptif ──────────────────────────────
                         ATR_THRESHOLD = {
-                            'FARTCOINUSDT'  : 0.0056,   # P25=0.556%
                             'XVGUSDT'       : 0.0030,   # P25=0.303%
                             '1000PEPEUSDT'  : 0.0031,   # P25=0.306%
                             '1000BONKUSDT'  : 0.0035,   # P25=0.348%
                             'BELUSDT'       : 0.0024,   # P25=0.238%
-                            'TAOUSDT'       : 0.0032,   # P25=0.316%
                             'USUALUSDT'     : 0.0034,   # P25=0.340%
-                            'BERAUSDT'      : 0.0035,
+                            'BERAUSDT'      : 0.0032,   # P25=0.322%
                             'WIFUSDT'       : 0.0038,   # P25=0.378%
                             'PENGUUSDT'     : 0.0040,   # P25=0.397%
                             'PNUTUSDT'      : 0.0036,   # P25=0.357%
-                            'SUIUSDT'       : 0.0029,   # P25=0.286%
                             'AVAXUSDT'      : 0.0025,   # P25=0.251%
                             'ONDOUSDT'      : 0.0027,   # P25=0.270%
                             'EIGENUSDT'     : 0.0037,   # P25=0.369%
                             'LINKUSDT'      : 0.0025,   # P25=0.253%
                             'VIRTUALUSDT'   : 0.0040,   # P25=0.402%
                             'ORCAUSDT'      : 0.0024,   # P25=0.237%
+                            'DOGEUSDT'      : 0.0024,   # P25=0.242%
+                            'ARBUSDT'       : 0.0028,   # P25=0.279%
+                            'NEARUSDT'      : 0.0029,   # P25=0.287%
+                            'STORJUSDT'     : 0.0017,   # P25=0.172%
+                            'ENAUSDT'       : 0.0039,   # P25=0.388%
+                            'ADAUSDT'       : 0.0025,   # P25=0.247%
+                            'SHIB1000USDT'  : 0.0020,   # P25=0.197%
                         }
                         atr_thresh = ATR_THRESHOLD.get(coin, 0.0035)
                         df_atr_m5  = get_data(coin, "5", limit=20)
