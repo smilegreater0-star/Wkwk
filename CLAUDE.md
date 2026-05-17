@@ -1,258 +1,137 @@
-# SMC Trading Bot — Claude Code Instructions
+# 🤖 SMC Trading Bot v4
 
-Ini adalah project bot trading otomatis berbasis **Smart Money Concepts (SMC)** untuk Bybit Futures.  
-Kamu adalah asisten yang membantu mengembangkan, debugging, dan backtest bot ini.
-
----
-
-## File Utama
-
-| File | Keterangan |
-|------|-----------|
-| `bott_v4.py` | Bot trading live — deploy di Railway |
-| `backtest.py` | Engine backtest — simulasi dengan data historis M5 |
-| `CLAUDE.md` | File ini — instruksi untuk Claude Code |
+Bot trading otomatis berbasis **Smart Money Concepts (SMC)** untuk Bybit Futures (USDT Perpetual).
 
 ---
 
-## Struktur Bot (`bott_v4.py`)
+## 📐 Strategi
 
-### Alur strategi SMC:
 ```
 BOS H1 → EMA50 Filter → FVG Touch → IDM M5 → BOS/Sweep M5 → MSS → Entry
 ```
 
-### Fungsi-fungsi kunci:
-- `find_last_swing_bos(df)` — deteksi swing high/low dan BOS
-- `get_internal_gaps(df, stype, bos_idx)` — cari FVG di dalam range BOS
-- `replay_m5(df, stype)` — state machine IDM M5 (SINGLE_MOVE → KONSOLIDASI → TUNGGU_SENTUH)
-- `check_bos_or_sweep(df, fh, fl, ts, stype)` — deteksi BOS/Sweep M5 setelah IDM
-- `find_breaker_block(df, ts, stype)` — cari Breaker Block untuk entry
-- `place_limit_order(symbol, side, entry, sl, tp)` — eksekusi order ke Bybit
-- `replay_h1(df_h1)` — scan setup baru dari H1 (return state dict)
-- `run_bot()` — main loop, jalan setiap M5 close (5 menit)
-
-### State machine pending setup:
-```
-WAIT_FVG_TOUCH → WAIT_IDM_TOUCH → WAIT_BOS_BREAK → WAIT_MSS → ENTRY
-```
-
-### Pembatalan setup (CHOCH):
-- BOS Long → swing low ditembus → setup batal
-- BOS Short → swing high ditembus → setup batal
-- Harga ke swing high baru tanpa FVG → BOS tetap valid, update FVG list
-
-### Risk Management:
-- Risk per trade: 1% dari balance (compound)
-- TP: 3R (3× jarak SL)
-- Leverage: otomatis sesuai limit coin
-
-### ATR Filter Adaptif (threshold per coin):
-```python
-ATR_THRESHOLD = {
-    'FARTCOINUSDT'  : 0.0056,   # P25=0.556%
-    'XVGUSDT'       : 0.0030,   # P25=0.303%
-    '1000PEPEUSDT'  : 0.0031,   # P25=0.306%
-    'DOGEUSDT'      : 0.0024,   # P25=0.242%
-    '1000FLOKIUSDT' : 0.0030,   # P25=0.296%
-    '1000BONKUSDT'  : 0.0035,   # P25=0.348%
-    'BELUSDT'       : 0.0024,   # P25=0.238%
-    'TAOUSDT'       : 0.0032,   # P25=0.316%
-    'USUALUSDT'     : 0.0034,   # P25=0.340%
-    'BERAUSDT'      : 0.0035,
-}
-```
-> Threshold = P25 ATR historis → 75% waktu lolos filter, 25% waktu skip (sideways)
-
-### Environment Variables (Railway):
-```
-API_KEY      = Bybit API Key
-API_SECRET   = Bybit API Secret
-TESTNET      = false  (true untuk testnet)
-PORT         = 8080   (otomatis dari Railway)
-```
+**Risk Management:**
+- Risk per trade: **1% dari balance** (compound — tiap trade risk ikut balance live)
+- TP: **3R** (3× jarak SL dari entry)
+- Leverage: otomatis sesuai limit coin, maks 10×
 
 ---
 
-## Struktur Backtest (`backtest.py`)
+## 📊 Hasil Backtest — Full Year 2025
 
-### Cara pakai:
-```python
-from backtest import load_m5, backtest_coin, FILES, INITIAL_BALANCE
+> Modal $10 | Risk 1%/trade compound (1 pot bersama) | TP 3R | ATR Filter Adaptif
+> _22 Coin | Data Bybit Perpetual USDT | M5+H1 | Jan–Des 2025_
+> _(Generated: 2026-05-17)_
 
-# Load data
-df = load_m5('FARTCOINUSDT', FILES['FARTCOINUSDT'])
+### Per Coin (diurutkan PnL terbesar)
 
-# Jalankan backtest
-trades, final_balance = backtest_coin('FARTCOINUSDT', df, initial_balance=15.0)
-```
+| Coin | Trade | WR% | PnL ($) | ROI% | MaxDD% | PF | ATR P25 |
+|------|------:|----:|--------:|-----:|-------:|---:|--------:|
+| PENGUUSDT | 45 | 56% | +$720.96 | +7210% | 4.5% | 3.00 | 0.0040 |
+| BERAUSDT | 43 | 53% | +$600.27 | +6003% | 4.1% | 2.83 | 0.0032 |
+| VIRTUALUSDT | 46 | 50% | +$587.61 | +5876% | 5.6% | 2.44 | 0.0040 |
+| EIGENUSDT | 45 | 44% | +$550.84 | +5508% | 10.3% | 2.05 | 0.0037 |
+| WIFUSDT | 57 | 33% | +$541.22 | +5412% | 10.5% | 1.24 | 0.0038 |
+| 1000PEPEUSDT | 43 | 40% | +$434.69 | +4347% | 5.0% | 1.63 | 0.0031 |
+| USUALUSDT | 45 | 42% | +$374.54 | +3745% | 7.8% | 1.77 | 0.0034 |
+| NEARUSDT | 38 | 47% | +$371.54 | +3715% | 5.7% | 2.16 | 0.0029 |
+| DOGEUSDT | 30 | 47% | +$348.75 | +3487% | 3.5% | 2.12 | 0.0024 |
+| BELUSDT | 38 | 42% | +$305.05 | +3051% | 6.7% | 1.80 | 0.0024 |
+| ENAUSDT | 55 | 44% | +$304.96 | +3050% | 9.1% | 1.87 | 0.0039 |
+| SHIB1000USDT | 21 | 43% | +$244.30 | +2443% | 5.2% | 1.80 | 0.0020 |
+| 1000BONKUSDT | 44 | 59% | +$227.84 | +2278% | 4.0% | 3.18 | 0.0035 |
+| PNUTUSDT | 48 | 50% | +$214.58 | +2146% | 6.7% | 2.31 | 0.0036 |
+| ADAUSDT | 27 | 41% | +$172.40 | +1724% | 4.5% | 1.62 | 0.0025 |
+| ONDOUSDT | 30 | 50% | +$149.07 | +1491% | 5.4% | 2.41 | 0.0027 |
+| STORJUSDT | 23 | 52% | +$111.25 | +1112% | 2.3% | 2.53 | 0.0017 |
+| ARBUSDT | 33 | 36% | +$49.93 | +499% | 6.7% | 1.38 | 0.0028 |
+| LINKUSDT | 21 | 43% | +$30.11 | +301% | 4.6% | 1.80 | 0.0025 |
+| XVGUSDT | 30 | 40% | $-0.22 | -2% | 6.4% | 1.61 | 0.0030 |
+| AVAXUSDT | 32 | 44% | $-49.59 | -496% | 8.8% | 1.79 | 0.0025 |
+| ORCAUSDT | 24 | 33% | $-72.22 | -722% | 5.6% | 1.21 | 0.0024 |
+| **TOTAL** | **818** | **45%** | **+$6217.88** | **+62179%** | — | **51.95** | — |
 
-### Format data input (txt dari Bybit):
-```
-========================================
-         BYBIT OHLC DATA
-========================================
-Symbol     : FARTCOINUSDT
-...
-2025-01-01 00:00:00      | 0.8750      0.8800      0.8700      0.8760      1234567.0
-```
 
-### FILES dict — daftar file per coin:
-```python
-FILES = {
-    'FARTCOINUSDT': [
-        'FARTCOINUSDT_5m_01-01-2025~31-05-2025.txt',
-        'FARTCOINUSDT_5m_01-06-2025~30-09-2025.txt',
-        'FARTCOINUSDT_5m_01-10-2025~31-12-2025.txt',
-    ],
-    # ... coin lainnya
-}
-```
+**$10.00 → $6227.88 dalam setahun (+62179% ROI)**
 
-### DATA_DIR — lokasi file data:
-```python
-DATA_DIR = "/home/claude/fulldata"   # atau sesuaikan
-UPLOAD_DIR = "/mnt/user-data/uploads"  # fallback
-```
+### Analisis Win/Loss per Coin
 
-### Output backtest:
-```python
-trades = [
-    {
-        'symbol'     : 'FARTCOINUSDT',
-        'entry_ts'   : Timestamp,
-        'exit_ts'    : Timestamp,
-        'type'       : 'Long' / 'Short',
-        'outcome'    : 'tp' / 'sl' / 'timeout',
-        'entry'      : float,
-        'sl'         : float,
-        'tp'         : float,
-        'exit_price' : float,
-        'pnl_usd'    : float,
-        'balance'    : float,
-        'trigger'    : 'bos' / 'sweep',
-    }
-]
-```
+> Format: Direction · Entry Type · IDM depth · MSS body · Volume ratio
 
----
+| Coin | ✅ Win (pola rata-rata) | ❌ Loss (pola rata-rata) | 💡 Insight |
+|------|------------------------|-------------------------|------------|
+| PENGUUSDT | Long 52% · BB 100% · IDM 0.2× · Body 70% · Vol 1.4× | Long 60% · BB 100% · IDM 0.1× · Body 69% · Vol 1.0× | Volume MSS lebih tinggi saat win (1.4× vs 1.0×) |
+| BERAUSDT | Short 70% · BB 100% · IDM 0.3× · Body 63% · Vol 1.7× | Short 55% · BB 100% · IDM 0.5× · Body 70% · Vol 1.2× | Volume MSS lebih tinggi saat win (1.7× vs 1.2×) |
+| VIRTUALUSDT | Short 57% · BB 100% · IDM 0.2× · Body 64% · Vol 1.3× | Long 61% · BB 100% · IDM 0.2× · Body 73% · Vol 1.2× | Tidak ada pola dominan |
+| EIGENUSDT | Long 55% · BB 100% · IDM 0.1× · Body 73% · Vol 1.4× | Short 56% · BB 100% · IDM 0.2× · Body 69% · Vol 1.2× | Tidak ada pola dominan |
+| WIFUSDT | Long 53% · BB 100% · IDM 0.3× · Body 72% · Vol 1.4× | Long 50% · BB 100% · IDM 0.3× · Body 62% · Vol 1.0× | MSS body kuat (72% vs 62%) · Volume MSS lebih tinggi saat win (1.4× vs 1.0×) |
+| 1000PEPEUSDT | Long 53% · BB 100% · IDM 0.6× · Body 68% · Vol 1.1× | Long 65% · BB 100% · IDM 0.2× · Body 61% · Vol 1.2× | Setup lebih dalam prediktif (IDM 0.6×) · MSS body kuat (68% vs 61%) |
+| USUALUSDT | Long 63% · BB 100% · IDM 0.2× · Body 74% · Vol 1.3× | Short 65% · BB 100% · IDM 0.0× · Body 75% · Vol 1.2× | Long lebih baik (63% vs 35%) |
+| NEARUSDT | Long 67% · BB 100% · IDM 0.3× · Body 66% · Vol 1.2× | Long 55% · BB 100% · IDM 0.6× · Body 62% · Vol 1.0× | Setup cepat lebih baik (IDM 0.3×) |
+| DOGEUSDT | Long 57% · BB 100% · IDM 0.2× · Body 70% · Vol 1.4× | Long 62% · BB 100% · IDM 0.2× · Body 69% · Vol 1.7× | Tidak ada pola dominan |
+| BELUSDT | Long 50% · BB 100% · IDM 0.1× · Body 75% · Vol 1.6× | Short 55% · BB 100% · IDM 0.3× · Body 74% · Vol 1.3× | Volume MSS lebih tinggi saat win (1.6× vs 1.3×) |
+| ENAUSDT | Short 58% · BB 100% · IDM 0.3× · Body 66% · Vol 1.1× | Long 65% · BB 100% · IDM 0.5× · Body 62% · Vol 1.0× | Short lebih baik (58% vs 35%) |
+| SHIB1000USDT | Long 56% · BB 100% · IDM 0.3× · Body 68% · Vol 1.1× | Long 58% · BB 100% · IDM 0.2× · Body 62% · Vol 1.0× | MSS body kuat (68% vs 62%) |
+| 1000BONKUSDT | Long 69% · BB 100% · IDM 0.2× · Body 66% · Vol 1.4× | Long 50% · BB 100% · IDM 0.2× · Body 59% · Vol 1.0× | MSS body kuat (66% vs 59%) · Volume MSS lebih tinggi saat win (1.4× vs 1.0×) |
+| PNUTUSDT | Long 50% · BB 100% · IDM 0.7× · Body 67% · Vol 1.3× | Long 71% · BB 100% · IDM 0.3× · Body 66% · Vol 0.9× | Short lebih baik (50% vs 29%) · Setup lebih dalam prediktif (IDM 0.7×) · Volume MSS lebih tinggi saat win (1.3× vs 0.9×) |
+| ADAUSDT | Long 55% · BB 100% · IDM 0.1× · Body 53% · Vol 1.1× | Long 56% · BB 100% · IDM 0.3× · Body 66% · Vol 1.0× | Tidak ada pola dominan |
+| ONDOUSDT | Long 60% · BB 100% · IDM 0.2× · Body 68% · Vol 1.3× | Long 53% · BB 100% · IDM 0.3× · Body 77% · Vol 1.3× | Tidak ada pola dominan |
+| STORJUSDT | Long 50% · BB 100% · IDM 0.6× · Body 74% · Vol 1.8× | Long 82% · BB 100% · IDM 0.0× · Body 61% · Vol 1.7× | Short lebih baik (50% vs 18%) · Setup lebih dalam prediktif (IDM 0.6×) · MSS body kuat (74% vs 61%) |
+| ARBUSDT | Short 67% · BB 100% · IDM 0.3× · Body 74% · Vol 1.4× | Long 67% · BB 100% · IDM 0.2× · Body 67% · Vol 1.1× | Short lebih baik (67% vs 33%) · MSS body kuat (74% vs 67%) |
+| LINKUSDT | Long 56% · BB 100% · IDM 0.4× · Body 55% · Vol 1.1× | Long 75% · BB 100% · IDM 0.3× · Body 61% · Vol 1.0× | Tidak ada pola dominan |
+| XVGUSDT | Long 58% · BB 100% · IDM 0.2× · Body 74% · Vol 2.2× | Short 56% · BB 100% · IDM 0.2× · Body 75% · Vol 1.4× | Volume MSS lebih tinggi saat win (2.2× vs 1.4×) |
+| AVAXUSDT | Short 57% · BB 100% · IDM 0.1× · Body 71% · Vol 1.4× | Long 56% · BB 100% · IDM 0.2× · Body 72% · Vol 1.1× | Tidak ada pola dominan |
+| ORCAUSDT | Long 50% · BB 100% · IDM 0.6× · Body 70% · Vol 1.7× | Short 62% · BB 100% · IDM 0.4× · Body 83% · Vol 1.1× | Volume MSS lebih tinggi saat win (1.7× vs 1.1×) |
 
-## Workflow Umum
+### Per Kuartal
 
-### 1. Backtest coin baru
-```bash
-# 1. Siapkan data M5 dari Bybit (format txt)
-# 2. Tambah ke FILES dict di backtest.py
-# 3. Jalankan backtest
-python -c "
-from backtest import load_m5, backtest_coin, FILES
-df = load_m5('NEWCOIN', FILES['NEWCOIN'])
-trades, bal = backtest_coin('NEWCOIN', df, 15.0)
-print(f'{len(trades)} trade, balance: \${bal:.2f}')
-"
-```
+| Kuartal | Trade | WR% | PnL | ROI Kuartal | Bal Awal → Akhir |
+|---------|------:|----:|----:|:-----------:|:----------------:|
+| Q1 | 230 | 42% | +$34.41 | +344.1% | $10.00 → $44.41 |
+| Q2 | 207 | 54% | +$423.97 | +954.7% | $44.41 → $468.38 |
+| Q3 | 184 | 40% | +$913.36 | +195.0% | $468.38 → $1381.75 |
+| Q4 | 197 | 45% | +$4846.13 | +350.7% | $1381.75 → $6227.88 |
 
-### 2. Cek ATR coin baru
-```python
-import numpy as np, pandas as pd
-from backtest import load_m5, FILES
+### Konfigurasi
 
-df = load_m5('NEWCOIN', FILES['NEWCOIN'])
-c = df['close'].to_numpy(float)
-h = df['high'].to_numpy(float)
-l = df['low'].to_numpy(float)
-pc = np.roll(c,1); pc[0]=c[0]
-tr = np.maximum.reduce([h-l, np.abs(h-pc), np.abs(l-pc)])
-atr14 = pd.Series(tr).rolling(14).mean().to_numpy()
-atr_pct = np.where(c>0, atr14/c*100, 0)[14:]
-
-p25 = np.percentile(atr_pct[atr_pct>0], 25)
-p50 = np.percentile(atr_pct[atr_pct>0], 50)
-skip = np.sum(atr_pct < p25) / len(atr_pct) * 100
-print(f'P25={p25:.3f}%  P50={p50:.3f}%  Skip={skip:.1f}%')
-# Gunakan P25 sebagai ATR_THRESHOLD untuk coin ini
-```
-
-### 3. Tambah coin ke bot
-```python
-# Di bott_v4.py — tambah ke SYMBOLS
-SYMBOLS = [..., 'NEWCOINUSDT']
-
-# Di ATR_THRESHOLD (dalam bott_v4.py dan backtest.py)
-ATR_THRESHOLD = {
-    ...
-    'NEWCOINUSDT': 0.00XX,  # hasil P25 ATR
-}
-```
-
-### 4. Ambil data Bybit kline via script
-```python
-from pybit.unified_trading import HTTP
-
-session = HTTP(testnet=False)
-res = session.get_kline(
-    symbol='NEWCOINUSDT',
-    category='linear',
-    interval=5,
-    limit=1000,
-    # start=timestamp_ms,
-    # end=timestamp_ms,
-)
-# res['result']['list'] = [[ts, open, high, low, close, vol, turnover], ...]
-```
+| Parameter | Nilai |
+|-----------|-------|
+| Modal Awal | $10 |
+| Risk per Trade | 1% balance (compound) |
+| TP | 3R |
+| Leverage | maks 10× |
+| Fee | 0.055%/sisi (Bybit taker) |
+| ATR Filter | P25 per coin |
+| Min RR | 2.8 |
+| Min SL distance | 0.5% |
 
 ---
 
-## Hasil Backtest (Referensi)
+## ⚙️ Daftar Coin (22 coin aktif)
 
-**Full Year 2025 | Modal $15 | Risk 1% compound | TP 3R | 9 Coin**
+```python
+SYMBOLS = ['XVGUSDT', 'BELUSDT', '1000BONKUSDT', 'BERAUSDT', 'USUALUSDT', '1000PEPEUSDT', 'WIFUSDT', 'PENGUUSDT', 'PNUTUSDT', 'AVAXUSDT', 'ONDOUSDT', 'EIGENUSDT', 'LINKUSDT', 'VIRTUALUSDT', 'ORCAUSDT', 'DOGEUSDT', 'ARBUSDT', 'NEARUSDT', 'STORJUSDT', 'ENAUSDT', 'ADAUSDT', 'SHIB1000USDT']
+```
 
-| Coin | Trade | WR% | PnL | PF |
-|------|------:|----:|----:|---:|
-| FARTCOINUSDT | 36 | 75% | +$69.38 | 12.14 |
-| TAOUSDT | 23 | 70% | +$40.58 | 9.50 |
-| 1000BONKUSDT | 24 | 62% | +$27.65 | 3.80 |
-| XVGUSDT | 13 | 69% | +$25.72 | 7.81 |
-| BELUSDT | 11 | 73% | +$19.97 | 7.19 |
-| USUALUSDT | 23 | 48% | +$16.29 | 2.62 |
-| 1000PEPEUSDT | 20 | 55% | +$15.67 | 2.61 |
-| DOGEUSDT | 13 | 46% | +$8.14 | 1.98 |
-| 1000FLOKIUSDT | 24 | 46% | +$2.54 | 1.17 |
-| **TOTAL** | **187** | **61%** | **+$225.96** | **4.17** |
+## Catatan
 
-**$15 → $240.96 dalam setahun (+1506% ROI)**
-
-### Per Kuartal:
-| Kuartal | Trade | WR% | PnL | Bal Awal → Akhir |
-|---------|------:|----:|----:|:----------------:|
-| Q1 | 59 | 63% | +$20.11 | $15 → $35.11 |
-| Q2 | 50 | 54% | +$24.95 | $35.11 → $60.06 |
-| Q3 | 31 | 65% | +$44.94 | $60.06 → $105.00 |
-| Q4 | 47 | 64% | +$135.96 | $105.00 → $240.96 |
+Strategi: **Recursive IDM** (IDM#1 → mandatory BOS → IDM#2 dalam BOS → WAIT_MSS → entry atau BOS lagi).
+Filter FVG-CHOCH aktif: FVG harus sepenuhnya di atas CHOCH level (Long) / di bawah CHOCH (Short).
 
 ---
 
-## Coin yang Dikeluarkan
+## 🚀 Deploy ke Railway
 
-- **ENAUSDT** — bearish 3 dari 4 kuartal 2025, ATR tinggi justru choppy.  
-  Karakteristik berlawanan dengan coin yang berhasil.
+Set environment variables:
 
----
+| Variable | Keterangan |
+|----------|-----------|
+| `API_KEY` | Bybit API Key (permission: Trade + Read) |
+| `API_SECRET` | Bybit API Secret |
+| `TESTNET` | `true` untuk testnet, default `false` |
 
-## Kapasitas Bot
-
-- Sleep per coin: 3 detik → maks ~36 coin (worst case)
-- Bybit API limit: 600 req/5 menit → jauh di atas kebutuhan
-- Railway free tier: cukup (512MB RAM, 1 vCPU)
-- **Rekomendasi: maks 15–20 coin** untuk headroom yang nyaman
+Log monitoring: `https://<project>.up.railway.app/logs`
 
 ---
 
-## Catatan Penting
-
-1. **Selalu backtest dulu** sebelum tambah coin ke bot live
-2. **Cek ATR P25** untuk tentukan threshold yang tepat per coin
-3. **Data M5 minimal setahun** untuk backtest yang valid
-4. **CHOCH level** di-update otomatis saat harga melewati swing high baru
-5. **IDM fix**: trigger jika `close < candidate_low` (bukan hanya wick) — sudah diimplementasi
-6. **TP guard**: semua cek TP pakai `and setup['tp']` agar tidak false trigger saat tp=0
+> ⚠️ Hasil backtest tidak menjamin performa di masa depan. Trading crypto mengandung risiko tinggi.
