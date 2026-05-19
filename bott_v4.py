@@ -83,10 +83,10 @@ MAX_GAP_PCT   = 0.006   # max gap_size / entry_price (FVG ≤ 0.60%)
 SYMBOLS = [
     # Core
     'XVGUSDT', 'BELUSDT', '1000BONKUSDT', 'BERAUSDT', 'USUALUSDT',
-    '1000PEPEUSDT', 'WIFUSDT', 'PENGUUSDT', 'PNUTUSDT',
-    'AVAXUSDT', 'ONDOUSDT', 'EIGENUSDT', 'LINKUSDT', 'VIRTUALUSDT', 'ORCAUSDT',
+    '1000PEPEUSDT', 'WIFUSDT', 'PNUTUSDT',
+    'ONDOUSDT', 'EIGENUSDT', 'LINKUSDT', 'VIRTUALUSDT', 'ORCAUSDT',
     # Rehabilitasi
-    'DOGEUSDT', 'ARBUSDT', 'NEARUSDT', 'STORJUSDT', 'ENAUSDT', 'ADAUSDT',
+    'DOGEUSDT', 'ARBUSDT', 'STORJUSDT', 'ENAUSDT',
     # Baru
     'SHIB1000USDT',
 ]
@@ -362,7 +362,6 @@ def place_market_order(symbol, side, entry, sl, trail_dist):
             category=CATEGORY, symbol=symbol, side=side,
             orderType="Market", qty=str(qty),
             stopLoss=str(sl_r),
-            trailingStop=str(trail_dist_r),
             timeInForce="IOC"
         )
         if res['retCode'] == 0:
@@ -401,13 +400,33 @@ def move_sl(symbol, new_sl):
 # TRAILING SL + REVERSE POSITION
 # ============================================================
 
+def _get_actual_exit_price(symbol):
+    """
+    Query Bybit closed PnL untuk ambil harga exit actual posisi terakhir.
+    Lebih akurat dari last_price (mark price di cek sebelumnya).
+    """
+    try:
+        res = session.get_closed_pnl(category=CATEGORY, symbol=symbol, limit=1)
+        if res['retCode'] == 0 and res['result']['list']:
+            last = res['result']['list'][0]
+            exit_p = float(last.get('avgExitPrice', 0))
+            if exit_p > 0:
+                return exit_p
+    except Exception as e:
+        print(f"⚠️ {symbol}: get_closed_pnl error: {e}")
+    return None
+
+
 def check_trailing_sl(coin):
     """
     Dipanggil setiap M5 close.
-    - Track trail_engaged: harga sudah lewati BE (TRAIL_STOP × dist dari entry)
-    - Jika posisi tutup: cek apakah immediate SL atau trail → buka reverse (max 2×)
-    Bybit handle trailing stop natively via trailingStop param saat order.
-    Di sini kita tracking state untuk keputusan reverse.
+
+    Reverse logic:
+    - Bot cek setiap M5 (5 menit). SL bisa kena kapan saja dalam candle.
+    - Saat posisi tutup terdeteksi, query get_closed_pnl untuk harga exit actual
+      (bukan last_price yang hanya mark price dari cek sebelumnya).
+    - Reverse dibuka sebagai market order di harga pasar saat itu.
+    - SL reverse = exit_actual ± dist (sama dengan dist trade asli).
     """
     if coin not in active_positions:
         return
@@ -416,44 +435,57 @@ def check_trailing_sl(coin):
     pos = get_open_position(coin)
 
     if pos is None:
-        # Posisi sudah tutup — keputusan reverse
-        entry      = p['entry']
-        side       = p['side']
-        dist       = p.get('dist', 0)
-        last_price = p.get('last_price', entry)
-        rev_count  = p.get('rev_count', 0)
+        # Posisi sudah tutup — ambil harga exit actual dari Bybit
+        entry     = p['entry']
+        side      = p['side']
+        dist      = p.get('dist', 0)
+        rev_count = p.get('rev_count', 0)
+
+        # Harga exit actual dari Bybit closed PnL
+        actual_exit = _get_actual_exit_price(coin)
+        last_price  = p.get('last_price', entry)
 
         if TRAIL_STOP > 0 and dist > 0 and rev_count < 2:
-            moved = (last_price - entry) if side == "Buy" else (entry - last_price)
-            imm_sl     = moved < -0.9 * dist           # exit sebelum sempat bergerak
-            trail_hit  = p.get('trail_engaged', False)  # pernah BE atau lebih
+            # Gunakan actual_exit jika ada, fallback ke last_price/sl
+            if actual_exit:
+                exit_price = actual_exit
+            else:
+                exit_price = last_price
+
+            moved      = (exit_price - entry) if side == "Buy" else (entry - exit_price)
+            imm_sl     = moved < -0.9 * dist          # keluar dekat SL awal, belum sempat bergerak
+            trail_hit  = p.get('trail_engaged', False) # pernah capai BE atau lebih
+
+            print(f"📊 {coin}: Posisi tutup | entry:{entry:.6f} exit:{exit_price:.6f} "
+                  f"moved:{moved/dist:.2f}R | imm_sl={imm_sl} trail={trail_hit}")
 
             if imm_sl or trail_hit:
                 rev_side  = "Sell" if side == "Buy" else "Buy"
-                # Immediate SL: gunakan harga SL actual (bukan last_price yang bisa beda)
-                rev_entry = p['sl'] if imm_sl else last_price
-                rev_sl    = rev_entry - dist if rev_side == "Buy" else rev_entry + dist
+                # SL reverse = jarak dist dari harga exit actual
+                rev_sl    = exit_price - dist if rev_side == "Buy" else exit_price + dist
                 rev_trail = TRAIL_STOP * dist
                 reason    = "imm" if imm_sl else "trail"
-                print(f"🔄 {coin}: Posisi {side} tutup ({reason}) → "
-                      f"Reverse {rev_side} @ {rev_entry:.6f} (rev#{rev_count+1})")
+                print(f"🔄 {coin}: Reverse {rev_side} @ market "
+                      f"(exit actual:{exit_price:.6f}) SL:{rev_sl:.6f} (rev#{rev_count+1})")
 
-                order_id = place_market_order(coin, rev_side, rev_entry, rev_sl, rev_trail)
+                order_id = place_market_order(coin, rev_side, exit_price, rev_sl, rev_trail)
                 if order_id:
                     active_positions[coin] = {
                         'side'          : rev_side,
-                        'entry'         : rev_entry,
+                        'entry'         : exit_price,
                         'sl'            : rev_sl,
                         'dist'          : dist,
                         'trail_dist'    : rev_trail,
                         'trail_engaged' : False,
-                        'last_price'    : rev_entry,
+                        'trail_set'     : False,
+                        'last_price'    : exit_price,
                         'rev_count'     : rev_count + 1,
                         'entry_time'    : time.time(),
                     }
                     return
 
-        print(f"📭 {coin}: Posisi tutup.")
+        pnl_str = f"{actual_exit:.6f}" if actual_exit else "?"
+        print(f"📭 {coin}: Posisi tutup @ {pnl_str}.")
         del active_positions[coin]
         return
 
@@ -465,6 +497,28 @@ def check_trailing_sl(coin):
         entry = p['entry']
         dist  = p.get('dist', 0)
         side  = p['side']
+
+        # Pasang trailing stop via set_trading_stop saat pertama posisi terdeteksi
+        if TRAIL_STOP > 0 and dist > 0 and not p.get('trail_set', False):
+            trail_dist = p.get('trail_dist', TRAIL_STOP * dist)
+            info       = get_instrument_info(coin)
+            trail_r    = round_price(trail_dist, info.get('tick_size', 0.0001))
+            if trail_r > 0:
+                try:
+                    res_ts = session.set_trading_stop(
+                        category=CATEGORY, symbol=coin,
+                        trailingStop=str(trail_r), positionIdx=0
+                    )
+                    if res_ts['retCode'] == 0:
+                        active_positions[coin]['trail_set'] = True
+                        print(f"📍 {coin}: Trailing stop {trail_r} dipasang "
+                              f"(dist={dist:.6f} × {TRAIL_STOP})")
+                    else:
+                        print(f"⚠️ {coin}: Gagal set trailing stop: "
+                              f"{res_ts.get('retMsg','')} (code:{res_ts['retCode']})")
+                except Exception as e:
+                    print(f"⚠️ {coin}: set_trading_stop error: {e}")
+
         if dist > 0 and not p.get('trail_engaged', False):
             if side == "Buy"  and curr_price >= entry + TRAIL_STOP * dist:
                 active_positions[coin]['trail_engaged'] = True
@@ -747,8 +801,11 @@ def run_bot():
                                 break
 
                         if not found:
-                            print(f"⏳ {coin}: Nunggu OCL touch | "
-                                  f"{len(fvg_list)} FVG kuat | "
+                            ocl_list = [f"{float(g.get('c2_close', 0)):.6g}"
+                                        for g in fvg_list if float(g.get('c2_close', 0)) > 0]
+                            ocl_str  = " / ".join(ocl_list) if ocl_list else "—"
+                            print(f"⏳ {coin}: Nunggu OCL touch @ {ocl_str} | "
+                                  f"{len(fvg_list)} FVG | "
                                   f"Harga H1: {curr_h1['close']:.6g}")
                     continue
 
