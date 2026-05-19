@@ -84,7 +84,6 @@ Sorted by compound contribution. All coins shown passed the positive-compound fi
 
 ---
 
-## Setup & Deployment
 
 ### Environment Variables (Railway)
 
@@ -94,5 +93,7 @@ Sorted by compound contribution. All coins shown passed the positive-compound fi
 | `API_SECRET` | Bybit API secret |
 | `TESTNET` | `false` |
 | `PORT` | `8080` (set automatically by Railway) |
+
+
 
 We don't depend on WR, but on compound.
