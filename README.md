@@ -1,137 +1,125 @@
-# 🤖 SMC Trading Bot v4
+# SMC Trading Bot — fvg_strong Strategy
 
 Bot trading otomatis berbasis **Smart Money Concepts (SMC)** untuk Bybit Futures (USDT Perpetual).
+Deploy di [Railway](https://railway.app).
 
 ---
 
-## 📐 Strategi
+## Strategi fvg_strong
 
 ```
-BOS H1 → EMA50 Filter → FVG Touch → IDM M5 → BOS/Sweep M5 → MSS → Entry
+BOS H1 → FVG (C3 volume > avg20H) → OCL touch M5 → Market order entry
 ```
-
-**Risk Management:**
-- Risk per trade: **1% dari balance** (compound — tiap trade risk ikut balance live)
-- TP: **3R** (3× jarak SL dari entry)
-- Leverage: otomatis sesuai limit coin, maks 10×
-
----
-
-## 📊 Hasil Backtest — Full Year 2025
-
-> Modal $10 | Risk 1%/trade compound (1 pot bersama) | TP 3R | ATR Filter Adaptif
-> _22 Coin | Data Bybit Perpetual USDT | M5+H1 | Jan–Des 2025_
-> _(Generated: 2026-05-17)_
-
-### Per Coin (diurutkan PnL terbesar)
-
-| Coin | Trade | WR% | PnL ($) | ROI% | MaxDD% | PF | ATR P25 |
-|------|------:|----:|--------:|-----:|-------:|---:|--------:|
-| PENGUUSDT | 45 | 56% | +$720.96 | +7210% | 4.5% | 3.00 | 0.0040 |
-| BERAUSDT | 43 | 53% | +$600.27 | +6003% | 4.1% | 2.83 | 0.0032 |
-| VIRTUALUSDT | 46 | 50% | +$587.61 | +5876% | 5.6% | 2.44 | 0.0040 |
-| EIGENUSDT | 45 | 44% | +$550.84 | +5508% | 10.3% | 2.05 | 0.0037 |
-| WIFUSDT | 57 | 33% | +$541.22 | +5412% | 10.5% | 1.24 | 0.0038 |
-| 1000PEPEUSDT | 43 | 40% | +$434.69 | +4347% | 5.0% | 1.63 | 0.0031 |
-| USUALUSDT | 45 | 42% | +$374.54 | +3745% | 7.8% | 1.77 | 0.0034 |
-| NEARUSDT | 38 | 47% | +$371.54 | +3715% | 5.7% | 2.16 | 0.0029 |
-| DOGEUSDT | 30 | 47% | +$348.75 | +3487% | 3.5% | 2.12 | 0.0024 |
-| BELUSDT | 38 | 42% | +$305.05 | +3051% | 6.7% | 1.80 | 0.0024 |
-| ENAUSDT | 55 | 44% | +$304.96 | +3050% | 9.1% | 1.87 | 0.0039 |
-| SHIB1000USDT | 21 | 43% | +$244.30 | +2443% | 5.2% | 1.80 | 0.0020 |
-| 1000BONKUSDT | 44 | 59% | +$227.84 | +2278% | 4.0% | 3.18 | 0.0035 |
-| PNUTUSDT | 48 | 50% | +$214.58 | +2146% | 6.7% | 2.31 | 0.0036 |
-| ADAUSDT | 27 | 41% | +$172.40 | +1724% | 4.5% | 1.62 | 0.0025 |
-| ONDOUSDT | 30 | 50% | +$149.07 | +1491% | 5.4% | 2.41 | 0.0027 |
-| STORJUSDT | 23 | 52% | +$111.25 | +1112% | 2.3% | 2.53 | 0.0017 |
-| ARBUSDT | 33 | 36% | +$49.93 | +499% | 6.7% | 1.38 | 0.0028 |
-| LINKUSDT | 21 | 43% | +$30.11 | +301% | 4.6% | 1.80 | 0.0025 |
-| XVGUSDT | 30 | 40% | $-0.22 | -2% | 6.4% | 1.61 | 0.0030 |
-| AVAXUSDT | 32 | 44% | $-49.59 | -496% | 8.8% | 1.79 | 0.0025 |
-| ORCAUSDT | 24 | 33% | $-72.22 | -722% | 5.6% | 1.21 | 0.0024 |
-| **TOTAL** | **818** | **45%** | **+$6217.88** | **+62179%** | — | **51.95** | — |
-
-
-**$10.00 → $6227.88 dalam setahun (+62179% ROI)**
-
-### Analisis Win/Loss per Coin
-
-> Format: Direction · Entry Type · IDM depth · MSS body · Volume ratio
-
-| Coin | ✅ Win (pola rata-rata) | ❌ Loss (pola rata-rata) | 💡 Insight |
-|------|------------------------|-------------------------|------------|
-| PENGUUSDT | Long 52% · BB 100% · IDM 0.2× · Body 70% · Vol 1.4× | Long 60% · BB 100% · IDM 0.1× · Body 69% · Vol 1.0× | Volume MSS lebih tinggi saat win (1.4× vs 1.0×) |
-| BERAUSDT | Short 70% · BB 100% · IDM 0.3× · Body 63% · Vol 1.7× | Short 55% · BB 100% · IDM 0.5× · Body 70% · Vol 1.2× | Volume MSS lebih tinggi saat win (1.7× vs 1.2×) |
-| VIRTUALUSDT | Short 57% · BB 100% · IDM 0.2× · Body 64% · Vol 1.3× | Long 61% · BB 100% · IDM 0.2× · Body 73% · Vol 1.2× | Tidak ada pola dominan |
-| EIGENUSDT | Long 55% · BB 100% · IDM 0.1× · Body 73% · Vol 1.4× | Short 56% · BB 100% · IDM 0.2× · Body 69% · Vol 1.2× | Tidak ada pola dominan |
-| WIFUSDT | Long 53% · BB 100% · IDM 0.3× · Body 72% · Vol 1.4× | Long 50% · BB 100% · IDM 0.3× · Body 62% · Vol 1.0× | MSS body kuat (72% vs 62%) · Volume MSS lebih tinggi saat win (1.4× vs 1.0×) |
-| 1000PEPEUSDT | Long 53% · BB 100% · IDM 0.6× · Body 68% · Vol 1.1× | Long 65% · BB 100% · IDM 0.2× · Body 61% · Vol 1.2× | Setup lebih dalam prediktif (IDM 0.6×) · MSS body kuat (68% vs 61%) |
-| USUALUSDT | Long 63% · BB 100% · IDM 0.2× · Body 74% · Vol 1.3× | Short 65% · BB 100% · IDM 0.0× · Body 75% · Vol 1.2× | Long lebih baik (63% vs 35%) |
-| NEARUSDT | Long 67% · BB 100% · IDM 0.3× · Body 66% · Vol 1.2× | Long 55% · BB 100% · IDM 0.6× · Body 62% · Vol 1.0× | Setup cepat lebih baik (IDM 0.3×) |
-| DOGEUSDT | Long 57% · BB 100% · IDM 0.2× · Body 70% · Vol 1.4× | Long 62% · BB 100% · IDM 0.2× · Body 69% · Vol 1.7× | Tidak ada pola dominan |
-| BELUSDT | Long 50% · BB 100% · IDM 0.1× · Body 75% · Vol 1.6× | Short 55% · BB 100% · IDM 0.3× · Body 74% · Vol 1.3× | Volume MSS lebih tinggi saat win (1.6× vs 1.3×) |
-| ENAUSDT | Short 58% · BB 100% · IDM 0.3× · Body 66% · Vol 1.1× | Long 65% · BB 100% · IDM 0.5× · Body 62% · Vol 1.0× | Short lebih baik (58% vs 35%) |
-| SHIB1000USDT | Long 56% · BB 100% · IDM 0.3× · Body 68% · Vol 1.1× | Long 58% · BB 100% · IDM 0.2× · Body 62% · Vol 1.0× | MSS body kuat (68% vs 62%) |
-| 1000BONKUSDT | Long 69% · BB 100% · IDM 0.2× · Body 66% · Vol 1.4× | Long 50% · BB 100% · IDM 0.2× · Body 59% · Vol 1.0× | MSS body kuat (66% vs 59%) · Volume MSS lebih tinggi saat win (1.4× vs 1.0×) |
-| PNUTUSDT | Long 50% · BB 100% · IDM 0.7× · Body 67% · Vol 1.3× | Long 71% · BB 100% · IDM 0.3× · Body 66% · Vol 0.9× | Short lebih baik (50% vs 29%) · Setup lebih dalam prediktif (IDM 0.7×) · Volume MSS lebih tinggi saat win (1.3× vs 0.9×) |
-| ADAUSDT | Long 55% · BB 100% · IDM 0.1× · Body 53% · Vol 1.1× | Long 56% · BB 100% · IDM 0.3× · Body 66% · Vol 1.0× | Tidak ada pola dominan |
-| ONDOUSDT | Long 60% · BB 100% · IDM 0.2× · Body 68% · Vol 1.3× | Long 53% · BB 100% · IDM 0.3× · Body 77% · Vol 1.3× | Tidak ada pola dominan |
-| STORJUSDT | Long 50% · BB 100% · IDM 0.6× · Body 74% · Vol 1.8× | Long 82% · BB 100% · IDM 0.0× · Body 61% · Vol 1.7× | Short lebih baik (50% vs 18%) · Setup lebih dalam prediktif (IDM 0.6×) · MSS body kuat (74% vs 61%) |
-| ARBUSDT | Short 67% · BB 100% · IDM 0.3× · Body 74% · Vol 1.4× | Long 67% · BB 100% · IDM 0.2× · Body 67% · Vol 1.1× | Short lebih baik (67% vs 33%) · MSS body kuat (74% vs 67%) |
-| LINKUSDT | Long 56% · BB 100% · IDM 0.4× · Body 55% · Vol 1.1× | Long 75% · BB 100% · IDM 0.3× · Body 61% · Vol 1.0× | Tidak ada pola dominan |
-| XVGUSDT | Long 58% · BB 100% · IDM 0.2× · Body 74% · Vol 2.2× | Short 56% · BB 100% · IDM 0.2× · Body 75% · Vol 1.4× | Volume MSS lebih tinggi saat win (2.2× vs 1.4×) |
-| AVAXUSDT | Short 57% · BB 100% · IDM 0.1× · Body 71% · Vol 1.4× | Long 56% · BB 100% · IDM 0.2× · Body 72% · Vol 1.1× | Tidak ada pola dominan |
-| ORCAUSDT | Long 50% · BB 100% · IDM 0.6× · Body 70% · Vol 1.7× | Short 62% · BB 100% · IDM 0.4× · Body 83% · Vol 1.1× | Volume MSS lebih tinggi saat win (1.7× vs 1.1×) |
-
-### Per Kuartal
-
-| Kuartal | Trade | WR% | PnL | ROI Kuartal | Bal Awal → Akhir |
-|---------|------:|----:|----:|:-----------:|:----------------:|
-| Q1 | 230 | 42% | +$34.41 | +344.1% | $10.00 → $44.41 |
-| Q2 | 207 | 54% | +$423.97 | +954.7% | $44.41 → $468.38 |
-| Q3 | 184 | 40% | +$913.36 | +195.0% | $468.38 → $1381.75 |
-| Q4 | 197 | 45% | +$4846.13 | +350.7% | $1381.75 → $6227.88 |
-
-### Konfigurasi
 
 | Parameter | Nilai |
 |-----------|-------|
-| Modal Awal | $10 |
-| Risk per Trade | 1% balance (compound) |
-| TP | 3R |
-| Leverage | maks 10× |
-| Fee | 0.055%/sisi (Bybit taker) |
-| ATR Filter | P25 per coin |
-| Min RR | 2.8 |
-| Min SL distance | 0.5% |
+| Entry | Market order saat harga sentuh OCL (C2 close dari FVG) |
+| SL | 6.2× gap_size dari entry |
+| Trailing Stop | Aktif sejak entry, jarak 2.0× dist |
+| Break Even | Saat harga capai entry + 2× dist |
+| Touch Volume | ≥ 0.8× avg 20 candle M5 |
+| Max FVG Gap | ≤ 0.60% dari harga |
+| Risk per trade | 1% dari balance (compound) |
+| Leverage | Otomatis, maks 10× |
 
 ---
 
-## ⚙️ Daftar Coin (22 coin aktif)
+## Hasil Backtest — Full Year 2025
 
-```python
-SYMBOLS = ['XVGUSDT', 'BELUSDT', '1000BONKUSDT', 'BERAUSDT', 'USUALUSDT', '1000PEPEUSDT', 'WIFUSDT', 'PENGUUSDT', 'PNUTUSDT', 'AVAXUSDT', 'ONDOUSDT', 'EIGENUSDT', 'LINKUSDT', 'VIRTUALUSDT', 'ORCAUSDT', 'DOGEUSDT', 'ARBUSDT', 'NEARUSDT', 'STORJUSDT', 'ENAUSDT', 'ADAUSDT', 'SHIB1000USDT']
+**34 coin ditest → 23 lolos (compound positif)**  
+Modal: $10 | Risk: 1%/trade compound | Period: Jan–Des 2025
+
+| Metric | Nilai |
+|--------|-------|
+| Total Trade | 2.915 |
+| Win Rate | 36.1% |
+| **Compound** | **$10 → $11.060** |
+| **ROI** | **+110.507%** |
+
+### Per Kuartal
+
+| Kuartal | Trade | WR% | PnL | Balance |
+|---------|------:|----:|----:|---------|
+| Q1 | 702 | 36.6% | +$92 | $10 → $102 |
+| Q2 | 793 | 39.3% | +$1.984 | $102 → $2.086 |
+| Q3 | 796 | 33.9% | +$2.667 | $2.086 → $4.754 |
+| Q4 | 624 | 34.0% | +$6.307 | $4.754 → $11.061 |
+
+---
+
+## 23 Coin Aktif (Compound Positif)
+
+| Coin | Trade | WR% | Compound | MaxDD% | PF | R:R | ATR P25 |
+|------|------:|----:|---------:|-------:|---:|----:|--------:|
+| JUPUSDT | 86 | 38.4% | +$1.950 | 11.1% | 1.56 | 2.33 | 0.0030 |
+| BELUSDT | 105 | 40.0% | +$1.703 | 13.9% | 1.28 | 1.83 | 0.0024 |
+| DOTUSDT | 87 | 41.4% | +$1.600 | 12.8% | 1.60 | 2.12 | 0.0023 |
+| SEIUSDT | 69 | 34.8% | +$1.016 | 6.7% | 1.62 | 2.91 | 0.0028 |
+| ENAUSDT | 99 | 40.4% | +$974 | 7.6% | 1.50 | 2.00 | 0.0039 |
+| 1000PEPEUSDT | 71 | 45.1% | +$845 | 4.7% | 2.06 | 2.50 | 0.0031 |
+| ARBUSDT | 85 | 32.9% | +$705 | 7.3% | 1.32 | 2.59 | 0.0028 |
+| OPUSDT | 105 | 39.0% | +$688 | 11.1% | 1.21 | 1.92 | 0.0029 |
+| SHIB1000USDT | 86 | 32.6% | +$651 | 16.5% | 1.02 | 2.02 | 0.0020 |
+| 1000BONKUSDT | 100 | 40.0% | +$587 | 8.7% | 1.59 | 2.29 | 0.0035 |
+| RUNEUSDT | 93 | 38.7% | +$512 | 12.6% | 1.18 | 1.75 | 0.0022 |
+| ATOMUSDT | 94 | 36.2% | +$372 | 15.7% | 1.05 | 1.89 | 0.0021 |
+| ONDOUSDT | 116 | 32.8% | +$345 | 16.2% | 1.05 | 2.20 | 0.0027 |
+| LDOUSDT | 88 | 36.4% | +$335 | 9.4% | 1.17 | 2.08 | 0.0031 |
+| STXUSDT | 64 | 34.4% | +$317 | 10.1% | 1.20 | 2.26 | 0.0025 |
+| 1000FLOKIUSDT | 94 | 35.1% | +$313 | 13.0% | 1.02 | 1.88 | 0.0030 |
+| EIGENUSDT | 76 | 36.8% | +$287 | 10.7% | 1.21 | 2.12 | 0.0037 |
+| XVGUSDT | 78 | 44.9% | +$278 | 8.5% | 1.36 | 1.74 | 0.0030 |
+| ALGOUSDT | 93 | 35.5% | +$228 | 13.3% | 1.12 | 2.11 | 0.0024 |
+| VIRTUALUSDT | 78 | 29.5% | +$143 | 10.7% | 1.10 | 2.47 | 0.0040 |
+| PNUTUSDT | 54 | 29.6% | +$100 | 8.0% | 1.28 | 2.71 | 0.0036 |
+| BERAUSDT | 83 | 32.5% | +$77 | 14.7% | 1.11 | 2.44 | 0.0032 |
+| APEUSDT | 95 | 38.9% | +$22 | 13.8% | 1.24 | 2.03 | 0.0024 |
+
+---
+
+## Coin Dibuang (Compound Negatif)
+
+| Coin | Compound | PF | Alasan |
+|------|--------:|---:|--------|
+| INJUSDT | -$566 | 0.89 | PF < 1, 58% CHOCH |
+| STORJUSDT | -$504 | 1.21 | MaxDD 18.5%, timing losses di Q4 |
+| SUIUSDT | -$435 | 1.04 | PF marginal, compound negatif |
+| PYTHUSDT | -$354 | 1.17 | Timing losses saat balance besar |
+| WIFUSDT | -$274 | 1.32 | 52% CHOCH, losses di Q4 |
+| ICPUSDT | -$238 | 1.01 | MaxDD 17.4%, PF marginal |
+| DOGEUSDT | -$233 | 0.82 | PF < 1 |
+| ORCAUSDT | -$196 | 2.72 | PF bagus tapi timing compound sangat buruk |
+| SOLUSDT | -$115 | 1.45 | Losses terkonsentrasi di Q4 saat balance besar |
+| MASKUSDT | -$74 | 1.16 | Timing buruk |
+| GRTUSDT | -$12 | 1.19 | Borderline negatif |
+
+---
+
+## File Utama
+
+| File | Fungsi |
+|------|--------|
+| `bott_v4.py` | Bot live — deploy di Railway |
+| `backtest.py` | Engine backtest (logika identik dengan bot live) |
+| `backtest_web.py` | Backtest via Bybit API, hasil di browser |
+| `CLAUDE.md` | Instruksi untuk Claude Code |
+
+## Environment Variables (Railway)
+
+```
+API_KEY    = Bybit API Key
+API_SECRET = Bybit API Secret
+TESTNET    = false
+PORT       = 8080
 ```
 
-## Catatan
+Start command: `python bott_v4.py`
 
-Strategi: **Recursive IDM** (IDM#1 → mandatory BOS → IDM#2 dalam BOS → WAIT_MSS → entry atau BOS lagi).
-Filter FVG-CHOCH aktif: FVG harus sepenuhnya di atas CHOCH level (Long) / di bawah CHOCH (Short).
+## Backtest
 
----
-
-## 🚀 Deploy ke Railway
-
-Set environment variables:
-
-| Variable | Keterangan |
-|----------|-----------|
-| `API_KEY` | Bybit API Key (permission: Trade + Read) |
-| `API_SECRET` | Bybit API Secret |
-| `TESTNET` | `true` untuk testnet, default `false` |
-
-Log monitoring: `https://<project>.up.railway.app/logs`
-
----
-
-> ⚠️ Hasil backtest tidak menjamin performa di masa depan. Trading crypto mengandung risiko tinggi.
+```bash
+python backtest_web.py
+# Buka Railway domain → lihat progress real-time
+# /readme → export hasil ke markdown
+# /logs   → raw log
+```
