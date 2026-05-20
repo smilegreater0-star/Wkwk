@@ -76,7 +76,7 @@ session = HTTP(testnet=TESTNET, api_key=API_KEY, api_secret=API_SECRET)
 
 # ── Strategy params (sinkron dengan backtest.py) ─────────────
 SL_MULT       = 6.2     # SL = SL_MULT × gap_size dari entry
-TRAIL_STOP    = 2.0     # trailing distance = TRAIL_STOP × dist
+TRAIL_STOP    = 1.0     # trailing distance = TRAIL_STOP × dist
 TOUCH_VOL_MIN = 0.8     # touch candle volume min (× avg 20 M5 candle)
 MAX_GAP_PCT   = 0.006   # max gap_size / entry_price (FVG ≤ 0.60%)
 
@@ -207,12 +207,14 @@ def calc_atr(df, period=14):
 
 def find_last_swing_bos(df):
     highs, lows = [], []
-    for i in range(1, len(df) - 1):
+    for i in range(2, len(df) - 2):
         h = df['high'].iloc[i]
         l = df['low'].iloc[i]
-        if df['high'].iloc[i-1] < h and df['high'].iloc[i+1] < h:
+        if (df['high'].iloc[i-2] < h and df['high'].iloc[i-1] < h and
+                df['high'].iloc[i+1] < h and df['high'].iloc[i+2] < h):
             highs.append({'val': h, 'idx': i, 'ts': df['ts'].iloc[i]})
-        if df['low'].iloc[i-1] > l and df['low'].iloc[i+1] > l:
+        if (df['low'].iloc[i-2] > l and df['low'].iloc[i-1] > l and
+                df['low'].iloc[i+1] > l and df['low'].iloc[i+2] > l):
             lows.append({'val': l, 'idx': i, 'ts': df['ts'].iloc[i]})
     return highs, lows
 
