@@ -22,7 +22,7 @@ BOS H1 → FVG Kuat (C3 vol > avg20H, 3 candle warna sama) → OCL Touch M5
 
 ## 📊 Hasil Backtest — Jan 2025–Apr 2026
 
-> Modal $10 | Risk 1%/trade compound (1 pot bersama) | WR 65% | AVG RR 1:1.2
+> Modal $10 | Risk 1%/trade compound (1 pot bersama) | WR 65% | AVG RR 1:1.2 |
 > _35 Coin | Data Bybit Perpetual USDT | M5+H1 | Jan 2025–Apr 2026_
 > _(Generated: 2026-05-21)_
 
