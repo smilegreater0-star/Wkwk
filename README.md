@@ -22,41 +22,53 @@ BOS H1 → FVG Kuat (C3 vol > avg20H, 3 candle warna sama) → OCL Touch M5
 
 ## 📊 Hasil Backtest — Jan 2025–Apr 2026
 
-> Modal $10 | Risk 1%/trade compound (1 pot bersama) | TP 3R | ATR Filter Adaptif
-> _23 Coin | Data Bybit Perpetual USDT | M5+H1 | Jan 2025–Apr 2026_
+> Modal $10 | Risk 1%/trade compound (1 pot bersama) | WR 65% | AVG RR 1:1.2
+> _35 Coin | Data Bybit Perpetual USDT | M5+H1 | Jan 2025–Apr 2026_
 > _(Generated: 2026-05-21)_
 
 ### Per Coin (diurutkan PnL terbesar)
 
-| Coin | Trade | WR% | PnL ($) | ROI% | MaxDD% | PF | ATR P25 |
-|------|------:|----:|--------:|-----:|-------:|---:|--------:|
-| DOTUSDT | 185 | 60% | +$10831.63 | +108316% | 7.4% | 1.30 | 0.0023 |
-| XVGUSDT | 152 | 61% | +$10355.67 | +103557% | 5.9% | 1.39 | 0.0028 |
-| RUNEUSDT | 227 | 53% | +$9579.87 | +95799% | 18.1% | 1.01 | 0.0020 |
-| PNUTUSDT | 202 | 58% | +$9114.83 | +91148% | 9.2% | 1.40 | 0.0032 |
-| ARBUSDT | 160 | 51% | +$7394.99 | +73950% | 20.9% | 0.95 | 0.0027 |
-| OPUSDT | 213 | 53% | +$7036.43 | +70364% | 18.4% | 1.02 | 0.0028 |
-| APEUSDT | 187 | 56% | +$5048.81 | +50488% | 12.8% | 1.17 | 0.0024 |
-| SEIUSDT | 176 | 53% | +$4932.86 | +49329% | 14.1% | 0.97 | 0.0025 |
-| JUPUSDT | 191 | 52% | +$4504.84 | +45048% | 13.1% | 1.04 | 0.0028 |
-| EIGENUSDT | 206 | 58% | +$4335.53 | +43355% | 9.1% | 1.45 | 0.0033 |
-| VIRTUALUSDT | 235 | 60% | +$4133.68 | +41337% | 6.3% | 1.50 | 0.0036 |
-| ONDOUSDT | 199 | 53% | +$3431.91 | +34319% | 12.6% | 1.09 | 0.0025 |
-| STXUSDT | 179 | 59% | +$3028.72 | +30287% | 6.6% | 1.29 | 0.0023 |
-| 1000PEPEUSDT | 208 | 58% | +$2661.63 | +26616% | 11.4% | 1.22 | 0.0029 |
-| BELUSDT | 156 | 58% | +$1409.12 | +14091% | 9.0% | 1.53 | 0.0021 |
-| ALGOUSDT | 225 | 55% | +$1396.29 | +13963% | 8.0% | 1.10 | 0.0023 |
-| ENAUSDT | 214 | 56% | +$1357.34 | +13573% | 13.0% | 1.14 | 0.0035 |
-| BERAUSDT | 182 | 54% | +$732.70 | +7327% | 13.2% | 0.99 | 0.0031 |
-| SHIB1000USDT | 184 | 56% | +$679.98 | +6800% | 10.6% | 1.07 | 0.0019 |
-| ATOMUSDT | 214 | 52% | +$113.41 | +1134% | 22.6% | 0.87 | 0.0020 |
-| LDOUSDT | 173 | 58% | $-450.74 | -4507% | 8.3% | 1.39 | 0.0028 |
-| 1000FLOKIUSDT | 172 | 49% | $-2240.56 | -22406% | 16.1% | 0.90 | 0.0027 |
-| 1000BONKUSDT | 171 | 53% | $-2355.42 | -23554% | 11.6% | 1.00 | 0.0031 |
-| **TOTAL** | **4411** | **55%** | **+$87033.51** | **+870335%** | — | **18.25** | — |
+| Coin | Trade | WR% | PnL ($) | ROI% | MaxDD% | PF | Avg R:R | ATR P25 |
+|------|------:|----:|--------:|-----:|-------:|---:|--------:|--------:|
+| JUPUSDT | 66 | 62% | +$10552.66 | +105527% | 4.8% | 1.81 | 1.39:1 | 0.0028 |
+| TAOUSDT | 51 | 75% | +$9988.08 | +99881% | 2.1% | 3.13 | 1.29:1 | 0.0031 |
+| OPUSDT | 41 | 68% | +$6827.03 | +68270% | 3.4% | 1.80 | 1.05:1 | 0.0028 |
+| FLOWUSDT | 66 | 65% | +$6781.50 | +67815% | 2.6% | 2.02 | 1.36:1 | 0.0020 |
+| SANDUSDT | 59 | 63% | +$6460.55 | +64605% | 6.7% | 1.47 | 1.11:1 | 0.0022 |
+| ENAUSDT | 79 | 72% | +$6010.87 | +60109% | 4.3% | 2.29 | 1.09:1 | 0.0035 |
+| ORCAUSDT | 47 | 64% | +$5733.63 | +57336% | 4.3% | 2.56 | 1.72:1 | 0.0021 |
+| FARTCOINUSDT | 58 | 62% | +$5568.44 | +55684% | 5.4% | 1.71 | 1.22:1 | 0.0050 |
+| XRPUSDT | 68 | 63% | +$5193.23 | +51932% | 3.3% | 1.55 | 1.26:1 | 0.0018 |
+| SUIUSDT | 67 | 72% | +$5167.92 | +51679% | 2.8% | 2.65 | 1.35:1 | 0.0026 |
+| APEUSDT | 52 | 63% | +$4682.62 | +46826% | 5.0% | 1.79 | 1.34:1 | 0.0024 |
+| DYDXUSDT | 51 | 57% | +$4102.26 | +41023% | 6.4% | 1.43 | 1.34:1 | 0.0026 |
+| ALGOUSDT | 69 | 65% | +$4002.02 | +40020% | 3.7% | 1.79 | 1.25:1 | 0.0023 |
+| TIAUSDT | 53 | 66% | +$3279.23 | +32792% | 6.5% | 1.57 | 1.00:1 | 0.0030 |
+| ONDOUSDT | 69 | 55% | +$3257.68 | +32577% | 3.7% | 1.29 | 1.36:1 | 0.0025 |
+| XVGUSDT | 48 | 65% | +$3208.88 | +32089% | 4.3% | 1.84 | 1.24:1 | 0.0028 |
+| IMXUSDT | 54 | 61% | +$3183.44 | +31834% | 4.8% | 1.51 | 1.17:1 | 0.0028 |
+| STXUSDT | 51 | 69% | +$3063.69 | +30637% | 2.1% | 2.03 | 1.21:1 | 0.0023 |
+| AAVEUSDT | 34 | 68% | +$3006.34 | +30063% | 2.9% | 2.04 | 1.25:1 | 0.0026 |
+| SHIB1000USDT | 54 | 61% | +$2957.84 | +29578% | 7.3% | 1.31 | 1.20:1 | 0.0019 |
+| 1000PEPEUSDT | 65 | 63% | +$2789.65 | +27896% | 4.2% | 1.51 | 1.11:1 | 0.0029 |
+| ICPUSDT | 64 | 64% | +$2635.55 | +26356% | 5.8% | 1.56 | 1.08:1 | 0.0023 |
+| 1000BONKUSDT | 41 | 68% | +$1773.95 | +17739% | 3.2% | 2.06 | 1.17:1 | 0.0031 |
+| AXSUSDT | 62 | 63% | +$1614.21 | +16142% | 3.6% | 1.72 | 1.24:1 | 0.0023 |
+| XAUTUSDT | 32 | 56% | +$1586.09 | +15861% | 3.6% | 1.26 | 1.77:1 | 0.0003 |
+| GALAUSDT | 69 | 67% | +$1581.18 | +15812% | 2.4% | 2.19 | 1.30:1 | 0.0028 |
+| SOLUSDT | 69 | 68% | +$1352.10 | +13521% | 2.6% | 2.07 | 1.34:1 | 0.0022 |
+| GMXUSDT | 64 | 66% | +$1324.81 | +13248% | 4.1% | 2.51 | 1.75:1 | 0.0020 |
+| BERAUSDT | 44 | 61% | +$1095.99 | +10960% | 5.8% | 1.55 | 1.18:1 | 0.0031 |
+| BELUSDT | 56 | 62% | +$1072.25 | +10722% | 5.0% | 1.88 | 1.45:1 | 0.0021 |
+| LTCUSDT | 55 | 67% | +$908.27 | +9083% | 4.2% | 1.89 | 1.23:1 | 0.0018 |
+| VIRTUALUSDT | 69 | 72% | +$495.88 | +4959% | 2.4% | 2.70 | 1.24:1 | 0.0036 |
+| HBARUSDT | 59 | 64% | +$246.55 | +2465% | 4.9% | 1.96 | 1.46:1 | 0.0022 |
+| SEIUSDT | 60 | 63% | $-23.11 | -231% | 4.9% | 1.45 | 1.05:1 | 0.0025 |
+| EIGENUSDT | 54 | 70% | $-2297.54 | -22975% | 5.1% | 2.39 | 1.20:1 | 0.0033 |
+| **TOTAL** | **2000** | **65%** | **+$119183.70** | **+1191837%** | — | **52.36** | — |
 
 
-**$10.00 → $87043.51 dalam setahun (+870335% ROI)**
+**$10.00 → $119193.70 dalam setahun (+1191837% ROI)**
 
 ### Analisis Win/Loss per Coin
 
@@ -64,41 +76,53 @@ BOS H1 → FVG Kuat (C3 vol > avg20H, 3 candle warna sama) → OCL Touch M5
 
 | Coin | ✅ Win (pola rata-rata) | ❌ Loss (pola rata-rata) | 💡 Insight |
 |------|------------------------|-------------------------|------------|
-| **TOTAL** | **Short 51% · C3 2.2× · Tch 5.5× · Gap 0.79% · London** | **Long 51% · C3 2.2× · Tch 4.9× · Gap 0.80% · London** | **Vol sentuh SBR lebih besar saat win (5.5× vs 4.9×) · 38% loss = CHOCH nyata · 62% loss = drift (konsolidasi/ambiguous)** |
-| DOTUSDT | Short 54% · C3 2.0× · Tch 4.4× · Gap 0.49% · NY | Short 51% · C3 2.0× · Tch 4.0× · Gap 0.57% · NY | Vol sentuh SBR lebih besar saat win (4.4× vs 4.0×) · FVG lebih kecil saat win (0.49% vs 0.57%) · 39% loss = CHOCH nyata · 61% loss = drift (konsolidasi/ambiguous) |
-| XVGUSDT | Short 52% · C3 2.7× · Tch 7.9× · Gap 0.90% · London | Long 53% · C3 4.0× · Tch 5.2× · Gap 1.15% · London | Vol C3 justru lebih lemah saat win (2.7× vs 4.0×) · Vol sentuh SBR lebih besar saat win (7.9× vs 5.2×) · FVG lebih kecil saat win (0.90% vs 1.15%) · 35% loss = CHOCH nyata · 65% loss = drift (konsolidasi/ambiguous) |
-| RUNEUSDT | Long 50% · C3 2.2× · Tch 7.3× · Gap 0.65% · London | Long 50% · C3 2.1× · Tch 6.0× · Gap 0.76% · London | Vol sentuh SBR lebih besar saat win (7.3× vs 6.0×) · FVG lebih kecil saat win (0.65% vs 0.76%) · 30% loss = CHOCH nyata · 70% loss = drift (konsolidasi/ambiguous) |
-| PNUTUSDT | Short 51% · C3 2.5× · Tch 4.5× · Gap 1.00% · London | Short 59% · C3 2.2× · Tch 5.1× · Gap 1.13% · NY | Vol C3 lebih kuat saat win (2.5× vs 2.2×) · Vol sentuh SBR lebih kecil saat win (4.5× vs 5.1×) · FVG lebih kecil saat win (1.00% vs 1.13%) · Win dominan sesi London (loss: NY) · 38% loss = CHOCH nyata · 62% loss = drift (konsolidasi/ambiguous) |
-| ARBUSDT | Short 56% · C3 2.3× · Tch 3.9× · Gap 0.75% · London | Long 57% · C3 2.4× · Tch 4.2× · Gap 0.73% · London | 33% loss = CHOCH nyata · 67% loss = drift (konsolidasi/ambiguous) |
-| OPUSDT | Long 50% · C3 1.9× · Tch 4.0× · Gap 0.63% · London | Long 54% · C3 2.0× · Tch 4.3× · Gap 0.66% · London | 41% loss = CHOCH nyata · 59% loss = drift (konsolidasi/ambiguous) |
-| APEUSDT | Short 56% · C3 2.4× · Tch 5.4× · Gap 0.70% · NY | Long 57% · C3 2.2× · Tch 3.9× · Gap 0.56% · London | Vol sentuh SBR lebih besar saat win (5.4× vs 3.9×) · FVG lebih besar saat win (0.70% vs 0.56%) · Win dominan sesi NY (loss: London) · 43% loss = CHOCH nyata · 57% loss = drift (konsolidasi/ambiguous) |
-| SEIUSDT | Long 50% · C3 2.1× · Tch 3.8× · Gap 0.60% · Asia | Long 56% · C3 1.9× · Tch 3.9× · Gap 0.75% · London | FVG lebih kecil saat win (0.60% vs 0.75%) · Win dominan sesi Asia (loss: London) · 44% loss = CHOCH nyata · 56% loss = drift (konsolidasi/ambiguous) |
-| JUPUSDT | Short 52% · C3 1.9× · Tch 5.8× · Gap 0.83% · London | Short 52% · C3 2.1× · Tch 5.2× · Gap 0.76% · Asia | Vol sentuh SBR lebih besar saat win (5.8× vs 5.2×) · FVG lebih besar saat win (0.83% vs 0.76%) · Win dominan sesi London (loss: Asia) · 42% loss = CHOCH nyata · 58% loss = drift (konsolidasi/ambiguous) |
-| EIGENUSDT | Short 51% · C3 2.0× · Tch 5.2× · Gap 1.19% · London | Short 51% · C3 1.8× · Tch 5.3× · Gap 0.94% · London | FVG lebih besar saat win (1.19% vs 0.94%) · 41% loss = CHOCH nyata · 59% loss = drift (konsolidasi/ambiguous) |
-| VIRTUALUSDT | Short 53% · C3 1.9× · Tch 5.9× · Gap 1.04% · Asia | Long 52% · C3 1.8× · Tch 4.2× · Gap 0.98% · London | Vol sentuh SBR lebih besar saat win (5.9× vs 4.2×) · FVG lebih besar saat win (1.04% vs 0.98%) · Win dominan sesi Asia (loss: London) · 35% loss = CHOCH nyata · 65% loss = drift (konsolidasi/ambiguous) |
-| ONDOUSDT | Long 54% · C3 2.0× · Tch 8.4× · Gap 0.67% · London | Short 61% · C3 1.9× · Tch 7.0× · Gap 0.54% · London | Vol sentuh SBR lebih besar saat win (8.4× vs 7.0×) · FVG lebih besar saat win (0.67% vs 0.54%) · 39% loss = CHOCH nyata · 61% loss = drift (konsolidasi/ambiguous) |
-| STXUSDT | Short 50% · C3 2.2× · Tch 8.8× · Gap 0.78% · London | Short 53% · C3 2.3× · Tch 7.8× · Gap 0.76% · London | Vol sentuh SBR lebih besar saat win (8.8× vs 7.8×) · 36% loss = CHOCH nyata · 64% loss = drift (konsolidasi/ambiguous) |
-| 1000PEPEUSDT | Short 53% · C3 2.1× · Tch 4.0× · Gap 0.68% · NY | Long 52% · C3 2.1× · Tch 3.9× · Gap 0.90% · NY | FVG lebih kecil saat win (0.68% vs 0.90%) · 33% loss = CHOCH nyata · 67% loss = drift (konsolidasi/ambiguous) |
-| BELUSDT | Long 53% · C3 4.6× · Tch 9.3× · Gap 0.50% · Asia | Short 56% · C3 4.9× · Tch 9.5× · Gap 0.74% · London | Vol C3 justru lebih lemah saat win (4.6× vs 4.9×) · FVG lebih kecil saat win (0.50% vs 0.74%) · Win dominan sesi Asia (loss: London) · 27% loss = CHOCH nyata · 73% loss = drift (konsolidasi/ambiguous) |
-| ALGOUSDT | Short 54% · C3 2.0× · Tch 5.0× · Gap 0.66% · London | Short 52% · C3 2.4× · Tch 4.1× · Gap 0.67% · NY | Vol C3 justru lebih lemah saat win (2.0× vs 2.4×) · Vol sentuh SBR lebih besar saat win (5.0× vs 4.1×) · Win dominan sesi London (loss: NY) · 37% loss = CHOCH nyata · 63% loss = drift (konsolidasi/ambiguous) |
-| ENAUSDT | Short 51% · C3 1.9× · Tch 4.7× · Gap 1.05% · London | Long 55% · C3 2.0× · Tch 5.0× · Gap 1.01% · London | 44% loss = CHOCH nyata · 56% loss = drift (konsolidasi/ambiguous) |
-| BERAUSDT | Long 51% · C3 2.4× · Tch 2.8× · Gap 1.16% · London | Short 52% · C3 2.3× · Tch 2.8× · Gap 0.85% · Asia | FVG lebih besar saat win (1.16% vs 0.85%) · Win dominan sesi London (loss: Asia) · 36% loss = CHOCH nyata · 64% loss = drift (konsolidasi/ambiguous) |
-| SHIB1000USDT | Short 57% · C3 2.1× · Tch 5.2× · Gap 0.52% · London | Long 55% · C3 2.3× · Tch 4.9× · Gap 0.63% · London | FVG lebih kecil saat win (0.52% vs 0.63%) · 41% loss = CHOCH nyata · 59% loss = drift (konsolidasi/ambiguous) |
-| ATOMUSDT | Short 53% · C3 2.1× · Tch 4.2× · Gap 0.56% · London | Long 55% · C3 2.1× · Tch 4.4× · Gap 0.59% · Asia | Win dominan sesi London (loss: Asia) · 41% loss = CHOCH nyata · 59% loss = drift (konsolidasi/ambiguous) |
-| LDOUSDT | Short 51% · C3 1.9× · Tch 5.8× · Gap 0.75% · London | Short 56% · C3 2.0× · Tch 3.9× · Gap 0.81% · London | Vol sentuh SBR lebih besar saat win (5.8× vs 3.9×) · FVG lebih kecil saat win (0.75% vs 0.81%) · 34% loss = CHOCH nyata · 66% loss = drift (konsolidasi/ambiguous) |
-| 1000FLOKIUSDT | Long 53% · C3 1.7× · Tch 5.1× · Gap 0.80% · London | Long 54% · C3 2.0× · Tch 5.3× · Gap 0.92% · London | Vol C3 justru lebih lemah saat win (1.7× vs 2.0×) · FVG lebih kecil saat win (0.80% vs 0.92%) · 36% loss = CHOCH nyata · 64% loss = drift (konsolidasi/ambiguous) |
-| 1000BONKUSDT | Short 51% · C3 2.6× · Tch 4.2× · Gap 1.25% · Asia | Long 53% · C3 1.9× · Tch 4.8× · Gap 1.07% · NY | Vol C3 lebih kuat saat win (2.6× vs 1.9×) · Vol sentuh SBR lebih kecil saat win (4.2× vs 4.8×) · FVG lebih besar saat win (1.25% vs 1.07%) · Win dominan sesi Asia (loss: NY) · 42% loss = CHOCH nyata · 58% loss = drift (konsolidasi/ambiguous) |
+| **TOTAL** | **Short 52% · C3 2.2× · Tch 11.5× · Gap 0.70% · London** | **Long 52% · C3 2.1× · Tch 6.5× · Gap 0.76% · London** | **Vol sentuh SBR lebih besar saat win (11.5× vs 6.5×) · FVG lebih kecil saat win (0.70% vs 0.76%) · 29% loss = CHOCH nyata · 71% loss = drift (konsolidasi/ambiguous)** |
+| JUPUSDT | Short 56% · C3 1.9× · Tch 7.9× · Gap 0.83% · London | Long 52% · C3 2.1× · Tch 6.3× · Gap 0.90% · NY | Vol sentuh SBR lebih besar saat win (7.9× vs 6.3×) · FVG lebih kecil saat win (0.83% vs 0.90%) · Win dominan sesi London (loss: NY) · 32% loss = CHOCH nyata · 68% loss = drift (konsolidasi/ambiguous) |
+| TAOUSDT | Long 53% · C3 2.4× · Tch 6.5× · Gap 0.49% · London | Long 54% · C3 2.7× · Tch 8.0× · Gap 0.96% · London | Vol C3 justru lebih lemah saat win (2.4× vs 2.7×) · Vol sentuh SBR lebih kecil saat win (6.5× vs 8.0×) · FVG lebih kecil saat win (0.49% vs 0.96%) · 92% loss = drift (konsolidasi/ambiguous) |
+| OPUSDT | Short 57% · C3 2.1× · Tch 3.9× · Gap 0.57% · NY | Long 54% · C3 3.0× · Tch 2.1× · Gap 0.68% · London | Vol C3 justru lebih lemah saat win (2.1× vs 3.0×) · Vol sentuh SBR lebih besar saat win (3.9× vs 2.1×) · FVG lebih kecil saat win (0.57% vs 0.68%) · Win dominan sesi NY (loss: London) · 38% loss = CHOCH nyata · 62% loss = drift (konsolidasi/ambiguous) |
+| FLOWUSDT | Short 53% · C3 2.0× · Tch 15.8× · Gap 0.82% · London | Short 52% · C3 2.2× · Tch 10.0× · Gap 0.70% · London | Vol sentuh SBR lebih besar saat win (15.8× vs 10.0×) · FVG lebih besar saat win (0.82% vs 0.70%) · 87% loss = drift (konsolidasi/ambiguous) |
+| SANDUSDT | Long 54% · C3 2.2× · Tch 9.9× · Gap 0.56% · London | Short 55% · C3 2.3× · Tch 3.8× · Gap 0.56% · Asia | Vol sentuh SBR lebih besar saat win (9.9× vs 3.8×) · Win dominan sesi London (loss: Asia) · 36% loss = CHOCH nyata · 64% loss = drift (konsolidasi/ambiguous) |
+| ENAUSDT | Short 56% · C3 1.8× · Tch 5.8× · Gap 0.52% · London | Long 68% · C3 2.0× · Tch 6.9× · Gap 0.94% · NY | Short lebih baik (56% vs 32%) · Vol sentuh SBR lebih kecil saat win (5.8× vs 6.9×) · FVG lebih kecil saat win (0.52% vs 0.94%) · Win dominan sesi London (loss: NY) · 41% loss = CHOCH nyata · 59% loss = drift (konsolidasi/ambiguous) |
+| ORCAUSDT | Long 53% · C3 2.7× · Tch 68.7× · Gap 0.71% · Asia | Short 59% · C3 1.8× · Tch 18.5× · Gap 0.92% · Asia | Vol C3 lebih kuat saat win (2.7× vs 1.8×) · Vol sentuh SBR lebih besar saat win (68.7× vs 18.5×) · FVG lebih kecil saat win (0.71% vs 0.92%) · 29% loss = CHOCH nyata · 71% loss = drift (konsolidasi/ambiguous) |
+| FARTCOINUSDT | Short 58% · C3 1.5× · Tch 3.0× · Gap 0.91% · NY | Long 64% · C3 1.4× · Tch 3.8× · Gap 1.17% · NY | Short lebih baik (58% vs 36%) · Vol sentuh SBR lebih kecil saat win (3.0× vs 3.8×) · FVG lebih kecil saat win (0.91% vs 1.17%) · 36% loss = CHOCH nyata · 64% loss = drift (konsolidasi/ambiguous) |
+| XRPUSDT | Short 53% · C3 1.7× · Tch 3.0× · Gap 0.44% · London | Short 52% · C3 1.9× · Tch 3.0× · Gap 0.56% · London | FVG lebih kecil saat win (0.44% vs 0.56%) · 76% loss = drift (konsolidasi/ambiguous) |
+| SUIUSDT | Short 56% · C3 1.8× · Tch 4.7× · Gap 0.67% · London | Long 53% · C3 1.8× · Tch 2.2× · Gap 0.65% · London | Vol sentuh SBR lebih besar saat win (4.7× vs 2.2×) · 84% loss = drift (konsolidasi/ambiguous) |
+| APEUSDT | Short 55% · C3 2.1× · Tch 6.0× · Gap 0.82% · London | Long 68% · C3 2.3× · Tch 3.5× · Gap 0.56% · London | Short lebih baik (55% vs 32%) · Vol sentuh SBR lebih besar saat win (6.0× vs 3.5×) · FVG lebih besar saat win (0.82% vs 0.56%) · 32% loss = CHOCH nyata · 68% loss = drift (konsolidasi/ambiguous) |
+| DYDXUSDT | Short 52% · C3 2.3× · Tch 4.3× · Gap 0.91% · NY | Long 59% · C3 2.7× · Tch 4.7× · Gap 1.14% · Asia | Vol C3 justru lebih lemah saat win (2.3× vs 2.7×) · Vol sentuh SBR lebih kecil saat win (4.3× vs 4.7×) · FVG lebih kecil saat win (0.91% vs 1.14%) · Win dominan sesi NY (loss: Asia) · 32% loss = CHOCH nyata · 68% loss = drift (konsolidasi/ambiguous) |
+| ALGOUSDT | Short 60% · C3 1.7× · Tch 7.6× · Gap 0.70% · London | Long 67% · C3 2.0× · Tch 5.5× · Gap 0.58% · NY | Short lebih baik (60% vs 33%) · Vol sentuh SBR lebih besar saat win (7.6× vs 5.5×) · FVG lebih besar saat win (0.70% vs 0.58%) · Win dominan sesi London (loss: NY) · 75% loss = drift (konsolidasi/ambiguous) |
+| TIAUSDT | Short 51% · C3 1.9× · Tch 6.2× · Gap 0.63% · London | Short 56% · C3 2.0× · Tch 3.8× · Gap 0.78% · NY | Vol sentuh SBR lebih besar saat win (6.2× vs 3.8×) · FVG lebih kecil saat win (0.63% vs 0.78%) · Win dominan sesi London (loss: NY) · 39% loss = CHOCH nyata · 61% loss = drift (konsolidasi/ambiguous) |
+| ONDOUSDT | Long 53% · C3 2.2× · Tch 9.9× · Gap 0.68% · NY | Short 52% · C3 1.9× · Tch 8.6× · Gap 0.53% · London | Vol sentuh SBR lebih besar saat win (9.9× vs 8.6×) · FVG lebih besar saat win (0.68% vs 0.53%) · Win dominan sesi NY (loss: London) · 26% loss = CHOCH nyata · 74% loss = drift (konsolidasi/ambiguous) |
+| XVGUSDT | Long 55% · C3 2.3× · Tch 17.3× · Gap 0.79% · Asia | Long 53% · C3 3.6× · Tch 10.5× · Gap 0.88% · London | Vol C3 justru lebih lemah saat win (2.3× vs 3.6×) · Vol sentuh SBR lebih besar saat win (17.3× vs 10.5×) · FVG lebih kecil saat win (0.79% vs 0.88%) · Win dominan sesi Asia (loss: London) · 76% loss = drift (konsolidasi/ambiguous) |
+| IMXUSDT | Short 58% · C3 2.0× · Tch 22.1× · Gap 0.79% · London | Short 57% · C3 1.8× · Tch 6.5× · Gap 0.71% · Asia | Vol sentuh SBR lebih besar saat win (22.1× vs 6.5×) · FVG lebih besar saat win (0.79% vs 0.71%) · Win dominan sesi London (loss: Asia) · 29% loss = CHOCH nyata · 71% loss = drift (konsolidasi/ambiguous) |
+| STXUSDT | Long 51% · C3 1.8× · Tch 3.6× · Gap 0.47% · London | Short 69% · C3 1.7× · Tch 4.2× · Gap 0.57% · London | Long lebih baik (51% vs 31%) · Vol sentuh SBR lebih kecil saat win (3.6× vs 4.2×) · FVG lebih kecil saat win (0.47% vs 0.57%) · 31% loss = CHOCH nyata · 69% loss = drift (konsolidasi/ambiguous) |
+| AAVEUSDT | Long 52% · C3 2.1× · Tch 12.6× · Gap 0.75% · NY | Long 64% · C3 2.2× · Tch 7.1× · Gap 0.86% · London | Vol sentuh SBR lebih besar saat win (12.6× vs 7.1×) · FVG lebih kecil saat win (0.75% vs 0.86%) · Win dominan sesi NY (loss: London) · 36% loss = CHOCH nyata · 64% loss = drift (konsolidasi/ambiguous) |
+| SHIB1000USDT | Short 58% · C3 2.0× · Tch 5.8× · Gap 0.41% · London | Long 52% · C3 2.0× · Tch 4.2× · Gap 0.52% · London | Vol sentuh SBR lebih besar saat win (5.8× vs 4.2×) · FVG lebih kecil saat win (0.41% vs 0.52%) · 38% loss = CHOCH nyata · 62% loss = drift (konsolidasi/ambiguous) |
+| 1000PEPEUSDT | Long 51% · C3 2.4× · Tch 3.5× · Gap 0.66% · London | Short 58% · C3 2.7× · Tch 3.3× · Gap 0.90% · London | Vol C3 justru lebih lemah saat win (2.4× vs 2.7×) · FVG lebih kecil saat win (0.66% vs 0.90%) · 75% loss = drift (konsolidasi/ambiguous) |
+| ICPUSDT | Long 61% · C3 2.1× · Tch 8.2× · Gap 0.52% · NY | Short 57% · C3 2.0× · Tch 7.0× · Gap 0.60% · NY | Vol sentuh SBR lebih besar saat win (8.2× vs 7.0×) · FVG lebih kecil saat win (0.52% vs 0.60%) · 39% loss = CHOCH nyata · 61% loss = drift (konsolidasi/ambiguous) |
+| 1000BONKUSDT | Long 50% · C3 1.9× · Tch 6.2× · Gap 1.00% · NY | Long 54% · C3 2.4× · Tch 4.7× · Gap 1.00% · NY | Vol C3 justru lebih lemah saat win (1.9× vs 2.4×) · Vol sentuh SBR lebih besar saat win (6.2× vs 4.7×) · 85% loss = drift (konsolidasi/ambiguous) |
+| AXSUSDT | Short 54% · C3 2.5× · Tch 5.4× · Gap 0.99% · London | Short 55% · C3 2.5× · Tch 13.8× · Gap 0.66% · NY | Vol sentuh SBR lebih kecil saat win (5.4× vs 13.8×) · FVG lebih besar saat win (0.99% vs 0.66%) · Win dominan sesi London (loss: NY) · 36% loss = CHOCH nyata · 64% loss = drift (konsolidasi/ambiguous) |
+| XAUTUSDT | Short 56% · C3 2.0× · Tch 5.4× · Gap 0.30% · London | Long 64% · C3 2.0× · Tch 6.3× · Gap 0.28% · London | Vol sentuh SBR lebih kecil saat win (5.4× vs 6.3×) · 86% loss = drift (konsolidasi/ambiguous) |
+| GALAUSDT | Short 52% · C3 1.9× · Tch 7.9× · Gap 0.84% · NY | Short 52% · C3 1.8× · Tch 4.5× · Gap 0.98% · London | Vol sentuh SBR lebih besar saat win (7.9× vs 4.5×) · FVG lebih kecil saat win (0.84% vs 0.98%) · Win dominan sesi NY (loss: London) · 78% loss = drift (konsolidasi/ambiguous) |
+| SOLUSDT | Long 51% · C3 1.7× · Tch 3.2× · Gap 0.61% · London | Long 55% · C3 1.7× · Tch 3.8× · Gap 0.66% · Asia | Vol sentuh SBR lebih kecil saat win (3.2× vs 3.8×) · FVG lebih kecil saat win (0.61% vs 0.66%) · Win dominan sesi London (loss: Asia) · 27% loss = CHOCH nyata · 73% loss = drift (konsolidasi/ambiguous) |
+| GMXUSDT | Short 52% · C3 2.3× · Tch 90.0× · Gap 0.66% · Asia | Long 59% · C3 2.2× · Tch 16.8× · Gap 0.59% · Asia | Vol sentuh SBR lebih besar saat win (90.0× vs 16.8×) · FVG lebih besar saat win (0.66% vs 0.59%) · 77% loss = drift (konsolidasi/ambiguous) |
+| BERAUSDT | Long 52% · C3 2.0× · Tch 4.0× · Gap 0.88% · London | Long 53% · C3 1.7× · Tch 3.3× · Gap 0.99% · Asia | Vol sentuh SBR lebih besar saat win (4.0× vs 3.3×) · FVG lebih kecil saat win (0.88% vs 0.99%) · Win dominan sesi London (loss: Asia) · 29% loss = CHOCH nyata · 71% loss = drift (konsolidasi/ambiguous) |
+| BELUSDT | Long 51% · C3 6.4× · Tch 14.6× · Gap 0.43% · London | Short 57% · C3 3.8× · Tch 14.6× · Gap 0.56% · London | Vol C3 lebih kuat saat win (6.4× vs 3.8×) · FVG lebih kecil saat win (0.43% vs 0.56%) · 81% loss = drift (konsolidasi/ambiguous) |
+| LTCUSDT | Short 54% · C3 2.1× · Tch 6.6× · Gap 0.57% · Asia | Short 56% · C3 1.8× · Tch 6.4× · Gap 0.60% · Asia | Vol C3 lebih kuat saat win (2.1× vs 1.8×) · 78% loss = drift (konsolidasi/ambiguous) |
+| VIRTUALUSDT | Short 58% · C3 2.1× · Tch 9.2× · Gap 0.98% · NY | Long 53% · C3 1.9× · Tch 5.3× · Gap 0.94% · London | Vol sentuh SBR lebih besar saat win (9.2× vs 5.3×) · Win dominan sesi NY (loss: London) · 32% loss = CHOCH nyata · 68% loss = drift (konsolidasi/ambiguous) |
+| HBARUSDT | Short 55% · C3 2.2× · Tch 10.1× · Gap 0.69% · London | Long 57% · C3 2.0× · Tch 4.5× · Gap 0.82% · London | Vol sentuh SBR lebih besar saat win (10.1× vs 4.5×) · FVG lebih kecil saat win (0.69% vs 0.82%) · 38% loss = CHOCH nyata · 62% loss = drift (konsolidasi/ambiguous) |
+| SEIUSDT | Long 50% · C3 2.0× · Tch 4.5× · Gap 0.59% · Asia | Long 59% · C3 2.0× · Tch 3.5× · Gap 0.76% · London | Vol sentuh SBR lebih besar saat win (4.5× vs 3.5×) · FVG lebih kecil saat win (0.59% vs 0.76%) · Win dominan sesi Asia (loss: London) · 32% loss = CHOCH nyata · 68% loss = drift (konsolidasi/ambiguous) |
+| EIGENUSDT | Short 53% · C3 2.1× · Tch 3.4× · Gap 1.30% · London | Short 56% · C3 2.1× · Tch 4.3× · Gap 1.27% · London | Vol sentuh SBR lebih kecil saat win (3.4× vs 4.3×) · 50% loss = CHOCH nyata |
 
 ### Per Kuartal
 
 | Kuartal | Trade | WR% | PnL | ROI Kuartal | Bal Awal → Akhir |
 |---------|------:|----:|----:|:-----------:|:----------------:|
-| Q1 2025 | 824 | 56% | +$44.63 | +446.3% | $10.00 → $54.63 |
-| Q2 2025 | 867 | 55% | +$150.40 | +275.3% | $54.63 → $205.03 |
-| Q3 2025 | 870 | 54% | +$721.91 | +352.1% | $205.03 → $926.94 |
-| Q4 2025 | 729 | 56% | +$4137.67 | +446.4% | $926.94 → $5064.61 |
-| Q1 2026 | 825 | 56% | +$46137.32 | +911.0% | $5064.61 → $51201.93 |
-| Q2 2026 | 296 | 56% | +$35841.59 | +70.0% | $51201.93 → $87043.51 |
+| Q1 2025 | 334 | 60% | +$20.52 | +205.2% | $10.00 → $30.52 |
+| Q2 2025 | 407 | 66% | +$153.53 | +503.0% | $30.52 → $184.05 |
+| Q3 2025 | 380 | 64% | +$885.47 | +481.1% | $184.05 → $1069.52 |
+| Q4 2025 | 343 | 67% | +$7668.59 | +717.0% | $1069.52 → $8738.10 |
+| Q1 2026 | 397 | 66% | +$55891.15 | +639.6% | $8738.10 → $64629.25 |
+| Q2 2026 | 139 | 69% | +$54564.45 | +84.4% | $64629.25 → $119193.70 |
 
 ### Konfigurasi
 
@@ -116,10 +140,10 @@ BOS H1 → FVG Kuat (C3 vol > avg20H, 3 candle warna sama) → OCL Touch M5
 
 ---
 
-## ⚙️ Daftar Coin (23 coin aktif)
+## ⚙️ Daftar Coin (35 coin aktif)
 
 ```python
-SYMBOLS = ['XVGUSDT', 'BELUSDT', '1000BONKUSDT', 'BERAUSDT', '1000PEPEUSDT', 'PNUTUSDT', 'ONDOUSDT', 'EIGENUSDT', 'VIRTUALUSDT', 'ARBUSDT', 'ENAUSDT', 'SHIB1000USDT', '1000FLOKIUSDT', 'JUPUSDT', 'DOTUSDT', 'SEIUSDT', 'OPUSDT', 'RUNEUSDT', 'STXUSDT', 'ATOMUSDT', 'APEUSDT', 'LDOUSDT', 'ALGOUSDT']
+SYMBOLS = ['XVGUSDT', 'BELUSDT', '1000BONKUSDT', 'BERAUSDT', '1000PEPEUSDT', 'ONDOUSDT', 'EIGENUSDT', 'VIRTUALUSDT', 'ENAUSDT', 'SHIB1000USDT', 'JUPUSDT', 'SEIUSDT', 'OPUSDT', 'STXUSDT', 'APEUSDT', 'ALGOUSDT', 'ORCAUSDT', 'XRPUSDT', 'XAUTUSDT', 'FARTCOINUSDT', 'TAOUSDT', 'SOLUSDT', 'SUIUSDT', 'TIAUSDT', 'AAVEUSDT', 'GALAUSDT', 'IMXUSDT', 'GMXUSDT', 'HBARUSDT', 'SANDUSDT', 'AXSUSDT', 'LTCUSDT', 'DYDXUSDT', 'FLOWUSDT', 'ICPUSDT']
 ```
 
 ## Catatan
