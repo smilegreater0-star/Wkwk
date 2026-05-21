@@ -82,44 +82,59 @@ TOUCH_VOL_MIN = 0.8     # touch candle volume min (× avg 20 M5 candle)
 MAX_GAP_PCT   = 0.006   # max gap_size / entry_price (FVG ≤ 0.60%)
 
 SYMBOLS = [
-    # ── Lolos backtest fvg_strong full year 2025 (compound positif) ──────
-    # Original bot (dipertahankan)
+    # ── Lolos backtest fvg_sbr (compound positif, sinkron dengan backtest_web.py) ──
+    # Batch 1 (21 coin)
     'XVGUSDT', 'BELUSDT', '1000BONKUSDT', 'BERAUSDT',
-    '1000PEPEUSDT', 'PNUTUSDT',
+    '1000PEPEUSDT',
     'ONDOUSDT', 'EIGENUSDT', 'VIRTUALUSDT',
-    'ARBUSDT', 'ENAUSDT', 'SHIB1000USDT',
-    # Rehabilitasi (bagus di fvg_strong)
-    '1000FLOKIUSDT',
-    # Baru dari screening batch 3 & 4
-    'JUPUSDT', 'DOTUSDT', 'SEIUSDT', 'OPUSDT', 'RUNEUSDT',
-    'STXUSDT', 'ATOMUSDT', 'APEUSDT', 'LDOUSDT', 'ALGOUSDT',
+    'ENAUSDT', 'SHIB1000USDT',
+    'JUPUSDT', 'SEIUSDT', 'OPUSDT',
+    'STXUSDT', 'APEUSDT', 'ALGOUSDT',
+    'ORCAUSDT', 'XRPUSDT', 'XAUTUSDT', 'FARTCOINUSDT', 'TAOUSDT',
+    # Batch 2 lolos filter (14 coin)
+    'SOLUSDT', 'SUIUSDT', 'TIAUSDT',
+    'AAVEUSDT', 'GALAUSDT', 'IMXUSDT', 'GMXUSDT',
+    'HBARUSDT', 'SANDUSDT', 'AXSUSDT',
+    'LTCUSDT', 'DYDXUSDT', 'FLOWUSDT', 'ICPUSDT',
 ]
 
 ATR_THRESHOLD = {
-    # ATR P25 dari backtest full year 2025 (fvg_strong)
-    'XVGUSDT'       : 0.0030,
-    'BELUSDT'       : 0.0024,
-    '1000BONKUSDT'  : 0.0035,
-    'BERAUSDT'      : 0.0032,
-    '1000PEPEUSDT'  : 0.0031,
-    'PNUTUSDT'      : 0.0036,
-    'ONDOUSDT'      : 0.0027,
-    'EIGENUSDT'     : 0.0037,
-    'VIRTUALUSDT'   : 0.0040,
-    'ARBUSDT'       : 0.0028,
-    'ENAUSDT'       : 0.0039,
-    'SHIB1000USDT'  : 0.0020,
-    '1000FLOKIUSDT' : 0.0030,
-    'JUPUSDT'       : 0.0030,
-    'DOTUSDT'       : 0.0023,
-    'SEIUSDT'       : 0.0028,
-    'OPUSDT'        : 0.0029,
-    'RUNEUSDT'      : 0.0022,
-    'STXUSDT'       : 0.0025,
-    'ATOMUSDT'      : 0.0021,
-    'APEUSDT'       : 0.0024,
-    'LDOUSDT'       : 0.0031,
-    'ALGOUSDT'      : 0.0024,
+    # ATR P25 dari backtest fvg_sbr Jan2025–Apr2026
+    'XVGUSDT'       : 0.0028,   # P25=0.283%
+    'BELUSDT'       : 0.0021,   # P25=0.214%
+    '1000BONKUSDT'  : 0.0031,   # P25=0.308%
+    'BERAUSDT'      : 0.0031,   # P25=0.305%
+    '1000PEPEUSDT'  : 0.0029,   # P25=0.292%
+    'ONDOUSDT'      : 0.0025,   # P25=0.254%
+    'EIGENUSDT'     : 0.0033,   # P25=0.331%
+    'VIRTUALUSDT'   : 0.0036,   # P25=0.363%
+    'ENAUSDT'       : 0.0035,   # P25=0.348%
+    'SHIB1000USDT'  : 0.0019,   # P25=0.188%
+    'JUPUSDT'       : 0.0028,   # P25=0.278%
+    'SEIUSDT'       : 0.0025,   # P25=0.250%
+    'OPUSDT'        : 0.0028,   # P25=0.277%
+    'STXUSDT'       : 0.0023,   # P25=0.229%
+    'APEUSDT'       : 0.0024,   # P25=0.241%
+    'ALGOUSDT'      : 0.0023,   # P25=0.228%
+    'ORCAUSDT'      : 0.0021,   # P25=0.214%
+    'XRPUSDT'       : 0.0018,   # P25=0.185%
+    'XAUTUSDT'      : 0.0003,   # P25=0.027%
+    'FARTCOINUSDT'  : 0.0050,   # P25=0.503%
+    'TAOUSDT'       : 0.0031,   # P25=0.313%
+    'SOLUSDT'       : 0.0022,   # P25=0.217%
+    'SUIUSDT'       : 0.0026,   # P25=0.263%
+    'TIAUSDT'       : 0.0030,   # P25=0.298%
+    'AAVEUSDT'      : 0.0026,   # P25=0.259%
+    'GALAUSDT'      : 0.0028,   # P25=0.278%
+    'IMXUSDT'       : 0.0028,   # P25=0.276%
+    'GMXUSDT'       : 0.0020,   # P25=0.203%
+    'HBARUSDT'      : 0.0022,   # P25=0.217%
+    'SANDUSDT'      : 0.0022,   # P25=0.220%
+    'AXSUSDT'       : 0.0023,   # P25=0.231%
+    'LTCUSDT'       : 0.0018,   # P25=0.178%
+    'DYDXUSDT'      : 0.0026,   # P25=0.264%
+    'FLOWUSDT'      : 0.0020,   # P25=0.200%
+    'ICPUSDT'       : 0.0023,   # P25=0.231%
 }
 
 pending          = {}
@@ -534,21 +549,26 @@ def check_trailing_sl(coin):
         side  = p['side']
 
         # Pasang trailing stop via set_trading_stop saat pertama posisi terdeteksi
+        # activePrice = entry + dist (Long) / entry - dist (Short) → trail aktif setelah +1R profit
+        # Sinkron dengan backtest: trail hanya bergerak setelah peak >= entry + dist
         if TRAIL_STOP > 0 and dist > 0 and not p.get('trail_set', False):
             trail_dist = p.get('trail_dist', TRAIL_STOP * dist)
             info       = get_instrument_info(coin)
-            trail_r    = round_price(trail_dist, info.get('tick_size', 0.0001))
-            if trail_r > 0:
+            tick       = info.get('tick_size', 0.0001)
+            trail_r    = round_price(trail_dist, tick)
+            active_p   = round_price(entry + dist if side == "Buy" else entry - dist, tick)
+            if trail_r > 0 and active_p > 0:
                 try:
                     res_ts = session.set_trading_stop(
                         category=CATEGORY, symbol=coin,
                         trailingStop=str(trail_r),
+                        activePrice=str(active_p),
                         positionIdx=0
                     )
                     if res_ts['retCode'] == 0:
                         active_positions[coin]['trail_set'] = True
                         print(f"📍 {coin}: Trailing stop {trail_r} dipasang "
-                              f"(dist={dist:.6f} × {TRAIL_STOP})")
+                              f"(aktif @ {active_p} = entry+1R)")
                     else:
                         print(f"⚠️ {coin}: Gagal set trailing stop: "
                               f"{res_ts.get('retMsg','')} (code:{res_ts['retCode']})")
