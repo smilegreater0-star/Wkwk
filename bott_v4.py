@@ -126,6 +126,7 @@ ATR_THRESHOLD = {
 pending          = {}
 active_positions = {}
 instrument_cache = {}
+done_setups      = {}   # coin -> (swing_val, type) — cegah re-entry di BOS yang sama
 
 
 # ============================================================
@@ -477,6 +478,17 @@ def cancel_order(symbol, order_id):
         print(f"   ⚠️ {symbol}: cancel_order error → {e}")
 
 
+def _order_exists(symbol, order_id):
+    """True jika limit order masih aktif (belum filled/cancelled) di Bybit."""
+    try:
+        res = session.get_open_orders(category=CATEGORY, symbol=symbol, orderId=order_id)
+        if res['retCode'] == 0:
+            return len(res['result']['list']) > 0
+    except Exception:
+        pass
+    return False
+
+
 def get_open_position(symbol):
     try:
         res = session.get_positions(category=CATEGORY, symbol=symbol)
@@ -591,6 +603,7 @@ def check_trailing_sl(coin):
 
         pnl_str = f"{actual_exit:.6f}" if actual_exit else "?"
         print(f"📭 {coin}: Posisi tutup @ {pnl_str}.")
+        done_setups[coin] = (p.get('swing_val'), p.get('bos_type'))
         del active_positions[coin]
         return
 
@@ -804,11 +817,13 @@ def run_bot():
                         if stype == "Long"  and curr_h1['close'] < choch_level:
                             if setup.get('order_id'):
                                 cancel_order(coin, setup['order_id'])
+                            done_setups.pop(coin, None)   # struktur reset → boleh re-entry nanti
                             print(f"🔄 {coin}: CHOCH — swing low {choch_level:.6f} ditembus. Setup batal.")
                             del pending[coin]; continue
                         if stype == "Short" and curr_h1['close'] > choch_level:
                             if setup.get('order_id'):
                                 cancel_order(coin, setup['order_id'])
+                            done_setups.pop(coin, None)
                             print(f"🔄 {coin}: CHOCH — swing high {choch_level:.6f} ditembus. Setup batal.")
                             del pending[coin]; continue
 
@@ -846,7 +861,8 @@ def run_bot():
                             tick       = info.get('tick_size', 0.0001)
                             trail_r    = round_price(trail_d, tick)
                             active_p   = round_price(
-                                entry_p + dist if side_order == "Buy" else entry_p - dist, tick)
+                                entry_p + dist if side_order == "Buy"
+                                else entry_p - dist, tick)
                             if trail_r > 0 and active_p > 0:
                                 try:
                                     session.set_trading_stop(
@@ -869,13 +885,25 @@ def run_bot():
                                 'last_price'    : actual_entry,
                                 'rev_count'     : 0,
                                 'entry_time'    : time.time(),
+                                'swing_val'     : setup.get('swing_val'),
+                                'bos_type'      : stype,
                             }
+                            done_setups[coin] = (setup.get('swing_val'), stype)
                             del pending[coin]
                             print(f"✅ {coin}: Limit filled! Entry:{actual_entry:.6f} "
                                   f"SL:{sl_p:.6f} Trail aktif setelah +1R")
                         else:
-                            print(f"⏳ {coin}: Nunggu fill limit @ {setup['entry']:.6f} | "
-                                  f"SL:{setup['sl']:.6f} | {stype} | H1:{curr_h1['close']:.6g}")
+                            # Posisi belum terbuka — cek apakah order masih ada di Bybit
+                            oid = setup.get('order_id')
+                            if oid and not _order_exists(coin, oid):
+                                # Order sudah hilang (filled+closed dlm 1 candle, atau dibatalkan)
+                                print(f"⚠️ {coin}: Limit order hilang (filled+closed 1 candle "
+                                      f"atau dibatalkan). Setup selesai.")
+                                done_setups[coin] = (setup.get('swing_val'), stype)
+                                del pending[coin]
+                            else:
+                                print(f"⏳ {coin}: Nunggu fill limit @ {setup['entry']:.6f} | "
+                                      f"SL:{setup['sl']:.6f} | {stype} | H1:{curr_h1['close']:.6g}")
                         continue
 
                     # ── WAIT_FVG_TOUCH: scan M5 untuk OCL touch ──────
@@ -1041,6 +1069,11 @@ def run_bot():
                 if existing and existing.get('swing_val') == swing_val and existing.get('type') == stype:
                     continue
 
+                # Skip BOS yang sudah pernah ditradingkan — tunggu swing baru
+                done = done_setups.get(coin)
+                if done and done == (swing_val, stype):
+                    continue
+
                 # Overwrite BOS berbeda: batalkan limit order lama jika ada
                 if existing and existing.get('order_id'):
                     cancel_order(coin, existing['order_id'])
@@ -1069,8 +1102,8 @@ def run_bot():
                     c1_l   = float(chosen_fvg['c1_low'])
                     c1_h   = float(chosen_fvg['c1_high'])
                     c1_mid = (c1_h + c1_l) / 2.0
-                    dist   = abs(c1_c - c1_mid)
                     gap_s  = float(chosen_fvg['top']) - float(chosen_fvg['bottom'])
+                    dist   = abs(c1_c - c1_mid)
 
                     if dist < c1_c * 0.002:
                         continue  # SL terlalu dekat entry
