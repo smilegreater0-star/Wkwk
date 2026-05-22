@@ -7,24 +7,25 @@ Bot trading otomatis berbasis **Smart Money Concepts (SMC)** untuk Bybit Futures
 ## 📐 Strategi
 
 ```
-BOS H1 → FVG Kuat (C3 vol > avg20H, 3 candle warna sama) → OCL Touch M5
-  → Entry limit di C1.close (SBR/RBS demand/supply zone)
-  → SL di C1.low/C1.high + 10% buffer → Trail stop 0.15× dist → Reverse 2×
+BOS H1 → FVG Kuat (C3 vol > avg20H) → SBR Touch M5
+  → Entry market di C1.close (SBR/RBS demand/supply zone)
+  → SL di C1.low/C1.high ± 10% gap buffer
+  → Trail stop 0.15× dist (aktif setelah +1R) → Reverse max 2×
 ```
 
 **Risk Management:**
 - Risk per trade: **1% dari balance** (compound — tiap trade risk ikut balance live)
-- Exit: **trailing stop** 0.15× dist (tidak ada fixed TP — exit mengikuti harga)
-- Reverse: Long→SL→Short→SL→Long (max 2 kali reverse per setup)
+- Exit: **trailing stop** 0.15× dist, aktif setelah profit +1R
+- Reverse: Long→SL→Short (max 2 kali per setup)
 - Leverage: otomatis sesuai limit coin, maks 10×
 
 ---
 
 ## 📊 Hasil Backtest — Jan 2025–Apr 2026
 
-> Modal $10 | Risk 1%/trade compound (1 pot bersama) | WR 65% | AVG RR 1:1.2 |
+> Modal $10 | Risk 1%/trade compound (1 pot bersama) | Trail 0.15R + Reverse | ATR Filter Adaptif
 > _35 Coin | Data Bybit Perpetual USDT | M5+H1 | Jan 2025–Apr 2026_
-> _(Generated: 2026-05-21)_
+> _(Generated: 2026-05-22)_
 
 ### Per Coin (diurutkan PnL terbesar)
 
@@ -65,7 +66,7 @@ BOS H1 → FVG Kuat (C3 vol > avg20H, 3 candle warna sama) → OCL Touch M5
 | HBARUSDT | 59 | 64% | +$246.55 | +2465% | 4.9% | 1.96 | 1.46:1 | 0.0022 |
 | SEIUSDT | 60 | 63% | $-23.11 | -231% | 4.9% | 1.45 | 1.05:1 | 0.0025 |
 | EIGENUSDT | 54 | 70% | $-2297.54 | -22975% | 5.1% | 2.39 | 1.20:1 | 0.0033 |
-| **TOTAL** | **2000** | **65%** | **+$119183.70** | **+1191837%** | — | **52.36** | — |
+| **TOTAL** | **2000** | **65%** | **+$119183.70** | **+1191837%** | **10.7%** | **2.37** | **1.27:1** | — |
 
 
 **$10.00 → $119193.70 dalam setahun (+1191837% ROI)**
