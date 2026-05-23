@@ -85,10 +85,16 @@ MAX_CONCURRENT = 3      # maks order limit aktif + posisi bersamaan (margin ×10
 APPROACH_R     = 2.0    # place limit saat harga dalam 2R dari entry
 
 SYMBOLS = [
-    # 12 coin lolos filter fvg_limit concurrent backtest (Jan2025–Apr2026)
-    'BELUSDT', 'ONDOUSDT', 'VIRTUALUSDT', 'ALGOUSDT',
-    'XAUTUSDT', 'FARTCOINUSDT', 'BERAUSDT', 'SHIB1000USDT',
-    'STXUSDT', 'APEUSDT', 'SOLUSDT', 'LTCUSDT',
+    # 31 coin — hasil concurrent backtest Jan2025–Apr2026
+    # Batch 1
+    'XVGUSDT', 'BELUSDT', '1000BONKUSDT', 'BERAUSDT', '1000PEPEUSDT',
+    'ONDOUSDT', 'VIRTUALUSDT', 'ENAUSDT', 'SHIB1000USDT',
+    'JUPUSDT', 'SEIUSDT', 'OPUSDT',
+    'ALGOUSDT', 'ORCAUSDT', 'XRPUSDT', 'XAUTUSDT', 'FARTCOINUSDT', 'TAOUSDT',
+    # Batch 2
+    'SOLUSDT', 'SUIUSDT', 'TIAUSDT', 'AAVEUSDT', 'GALAUSDT',
+    'IMXUSDT', 'GMXUSDT', 'HBARUSDT', 'SANDUSDT', 'AXSUSDT',
+    'LTCUSDT', 'DYDXUSDT', 'ICPUSDT',
 ]
 
 ATR_THRESHOLD = {
@@ -99,23 +105,30 @@ ATR_THRESHOLD = {
     'BERAUSDT'      : 0.0031,   # P25=0.305%
     '1000PEPEUSDT'  : 0.0029,   # P25=0.292%
     'ONDOUSDT'      : 0.0025,   # P25=0.254%
-    'EIGENUSDT'     : 0.0033,   # P25=0.331%
     'VIRTUALUSDT'   : 0.0036,   # P25=0.363%
     'ENAUSDT'       : 0.0035,   # P25=0.348%
     'SHIB1000USDT'  : 0.0019,   # P25=0.188%
+    'JUPUSDT'       : 0.0028,   # P25=0.278%
+    'SEIUSDT'       : 0.0025,   # P25=0.250%
     'OPUSDT'        : 0.0028,   # P25=0.277%
-    'STXUSDT'       : 0.0023,   # P25=0.229%
     'ALGOUSDT'      : 0.0023,   # P25=0.228%
     'ORCAUSDT'      : 0.0021,   # P25=0.214%
     'XRPUSDT'       : 0.0018,   # P25=0.185%
+    'XAUTUSDT'      : 0.0003,   # P25=0.027%
     'FARTCOINUSDT'  : 0.0050,   # P25=0.503%
     'TAOUSDT'       : 0.0031,   # P25=0.313%
     'SOLUSDT'       : 0.0022,   # P25=0.217%
     'SUIUSDT'       : 0.0026,   # P25=0.263%
+    'TIAUSDT'       : 0.0030,   # P25=0.298%
+    'AAVEUSDT'      : 0.0026,   # P25=0.259%
+    'GALAUSDT'      : 0.0028,   # P25=0.278%
     'IMXUSDT'       : 0.0028,   # P25=0.276%
+    'GMXUSDT'       : 0.0020,   # P25=0.203%
+    'HBARUSDT'      : 0.0022,   # P25=0.217%
     'SANDUSDT'      : 0.0022,   # P25=0.220%
+    'AXSUSDT'       : 0.0023,   # P25=0.231%
     'LTCUSDT'       : 0.0018,   # P25=0.178%
-    'FLOWUSDT'      : 0.0020,   # P25=0.200%
+    'DYDXUSDT'      : 0.0026,   # P25=0.264%
     'ICPUSDT'       : 0.0023,   # P25=0.231%
 }
 
@@ -236,11 +249,11 @@ def _gap_vol_fields(df, c3_idx):
             'c1_open': c1_open, 'c1_close': c1_close,
             'c1_low': c1_low,   'c1_high': c1_high}
     if 'vol' not in df.columns:
-        return {**base, 'c3_vol': 0.0, 'vol_avg20h': 0.0}
+        return {**base, 'c3_vol': 0.0, 'vol_max10h': 0.0}
     c3_vol    = float(df['vol'].iloc[c3_idx])
-    avg_start = max(0, c3_idx - 20)
-    vol_avg   = float(df['vol'].iloc[avg_start:c3_idx].mean()) if c3_idx > 0 else 0.0
-    return {**base, 'c3_vol': c3_vol, 'vol_avg20h': vol_avg}
+    avg_start = max(0, c3_idx - 10)
+    vol_max   = float(df['vol'].iloc[avg_start:c3_idx].max()) if c3_idx > 0 else 0.0
+    return {**base, 'c3_vol': c3_vol, 'vol_max10h': vol_max}
 
 
 def get_internal_gaps(df, stype, bos_idx, lookback=60):
@@ -322,7 +335,7 @@ def _get_strong_fvgs(df_h1, stype, bos_idx, choch_level=None):
     gaps = get_internal_gaps(df_h1, stype, bos_idx)
     # Hanya FVG dengan volume kuat + C1/C3 fields valid
     gaps = [g for g in gaps
-            if g.get('c3_vol', 0) > g.get('vol_avg20h', 0) > 0
+            if g.get('c3_vol', 0) > g.get('vol_max10h', 0) > 0
             and g.get('c3_open', 0) > 0
             and g.get('c1_close', 0) > 0]
     # Filter FVG yang straddle CHOCH
@@ -508,7 +521,24 @@ def _order_exists(symbol, order_id):
     try:
         res = session.get_open_orders(category=CATEGORY, symbol=symbol, orderId=order_id)
         if res['retCode'] == 0:
-            return len(res['result']['list']) > 0
+            for o in res['result']['list']:
+                if o.get('orderId') == order_id and \
+                        o.get('orderStatus') in ('New', 'PartiallyFilled', 'Untriggered'):
+                    return True
+            return False
+    except Exception:
+        pass
+    return False
+
+
+def _order_was_filled(symbol, order_id):
+    """True jika order sudah Filled (cek history Bybit)."""
+    try:
+        res = session.get_order_history(
+            category=CATEGORY, symbol=symbol, orderId=order_id, limit=1
+        )
+        if res['retCode'] == 0 and res['result']['list']:
+            return res['result']['list'][0].get('orderStatus') == 'Filled'
     except Exception:
         pass
     return False
@@ -1005,15 +1035,67 @@ def run_bot():
                             # Posisi belum terbuka — cek apakah order masih ada di Bybit
                             oid = setup.get('order_id')
                             if oid and not _order_exists(coin, oid):
-                                # Order sudah hilang (filled+closed dlm 1 candle, atau dibatalkan)
-                                print(f"⚠️ {coin}: Limit order hilang (filled+closed 1 candle "
-                                      f"atau dibatalkan). Setup selesai.")
-                                done_setups[coin] = {
-                                    'swing_val': setup.get('swing_val'),
-                                    'stype'    : stype,
-                                    'used_ocl' : setup.get('entry'),
-                                }
-                                del pending[coin]
+                                # Order hilang dari open orders — cek apakah sudah filled atau cancel
+                                was_filled = _order_was_filled(coin, oid)
+                                if was_filled:
+                                    # Filled + SL kena dlm 1 candle → coba reverse
+                                    exit_p = _get_actual_exit_price(coin)
+                                    exit_str = f"{exit_p:.6f}" if exit_p else "?"
+                                    print(f"⚠️ {coin}: Limit filled+SL 1 candle @ {exit_str} "
+                                          f"→ coba reverse.")
+                                    done_setups[coin] = {
+                                        'swing_val': setup.get('swing_val'),
+                                        'stype'    : stype,
+                                        'used_ocl' : setup.get('entry'),
+                                    }
+                                    del pending[coin]
+                                    if exit_p:
+                                        dist_s   = setup.get('dist', 0)
+                                        rev_side = 'Sell' if stype == 'Long' else 'Buy'
+                                        rev_stype = 'Short' if stype == 'Long' else 'Long'
+                                        rev_sl   = (exit_p + dist_s) if rev_side == 'Sell' \
+                                                   else (exit_p - dist_s)
+                                        rev_trail = TRAIL_STOP * dist_s
+                                        print(f"🔄 {coin}: Reverse {rev_stype} @ {exit_p:.6f} "
+                                              f"(rev#1)")
+                                        rev_oid = place_market_order(
+                                            coin, rev_side, exit_p, rev_sl, rev_trail)
+                                        if rev_oid:
+                                            time.sleep(1)
+                                            pos_rev = get_open_position(coin)
+                                            if pos_rev:
+                                                rev_entry = float(
+                                                    pos_rev.get('avgPrice', exit_p))
+                                                active_positions[coin] = {
+                                                    'side'          : rev_side,
+                                                    'entry'         : rev_entry,
+                                                    'sl'            : rev_sl,
+                                                    'dist'          : dist_s,
+                                                    'trail_dist'    : rev_trail,
+                                                    'trail_engaged' : False,
+                                                    'trail_set'     : False,
+                                                    'last_price'    : rev_entry,
+                                                    'entry_time'    : time.time(),
+                                                    'swing_val'     : setup.get('swing_val'),
+                                                    'bos_type'      : rev_stype,
+                                                    'rev_count'     : 1,
+                                                    'orig_ocl'      : setup.get(
+                                                        'orig_ocl', setup.get('entry')),
+                                                }
+                                                print(f"✅ {coin}: Reverse {rev_stype} "
+                                                      f"entry:{rev_entry:.6f} sl:{rev_sl:.6f}")
+                                            else:
+                                                print(f"⚠️ {coin}: Reverse placed tapi posisi "
+                                                      f"belum terdeteksi.")
+                                else:
+                                    # Dibatalkan (bukan filled) — setup selesai
+                                    print(f"⚠️ {coin}: Limit order dibatalkan. Setup selesai.")
+                                    done_setups[coin] = {
+                                        'swing_val': setup.get('swing_val'),
+                                        'stype'    : stype,
+                                        'used_ocl' : setup.get('entry'),
+                                    }
+                                    del pending[coin]
                             else:
                                 print(f"⏳ {coin}: Nunggu fill limit @ {setup['entry']:.6f} | "
                                       f"SL:{setup['sl']:.6f} | {stype} | H1:{curr_h1['close']:.6g}")
