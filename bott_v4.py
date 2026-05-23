@@ -81,18 +81,14 @@ SBR_MODE      = True    # True = SBR entry di C1.close + SL di C1.low, False = O
 ENTRY_MODE    = 'fvg_limit'  # 'fvg_sbr' (market saat touch) | 'fvg_limit' (limit langsung di BOS)
 TOUCH_VOL_MIN = 0.8     # touch candle volume min (× avg 20 M5 candle) — hanya dipakai fvg_sbr
 MAX_GAP_PCT   = 0.006   # max gap_size / entry_price (FVG ≤ 0.60%)
+MAX_CONCURRENT = 3      # maks order limit aktif + posisi bersamaan (margin ×10 ~3 posisi 100%)
+APPROACH_R     = 2.0    # place limit saat harga dalam 2R dari entry
 
 SYMBOLS = [
-    # Batch 1 (17 coin — removed: JUP, SEI, APE, XAUT)
-    'XVGUSDT', 'BELUSDT', '1000BONKUSDT', 'BERAUSDT',
-    '1000PEPEUSDT',
-    'ONDOUSDT', 'EIGENUSDT', 'VIRTUALUSDT',
-    'ENAUSDT', 'SHIB1000USDT',
-    'OPUSDT', 'STXUSDT', 'ALGOUSDT',
-    'ORCAUSDT', 'XRPUSDT', 'FARTCOINUSDT', 'TAOUSDT',
-    # Batch 2 (7 coin — removed: TIA, AAVE, GALA, GMX, HBAR, AXS, DYDX)
-    'SOLUSDT', 'SUIUSDT', 'IMXUSDT',
-    'SANDUSDT', 'LTCUSDT', 'FLOWUSDT', 'ICPUSDT',
+    # 12 coin lolos filter fvg_limit concurrent backtest (Jan2025–Apr2026)
+    'BELUSDT', 'ONDOUSDT', 'VIRTUALUSDT', 'ALGOUSDT',
+    'XAUTUSDT', 'FARTCOINUSDT', 'BERAUSDT', 'SHIB1000USDT',
+    'STXUSDT', 'APEUSDT', 'SOLUSDT', 'LTCUSDT',
 ]
 
 ATR_THRESHOLD = {
@@ -126,7 +122,7 @@ ATR_THRESHOLD = {
 pending          = {}
 active_positions = {}
 instrument_cache = {}
-done_setups      = {}   # coin -> (swing_val, type) — cegah re-entry di BOS yang sama
+done_setups      = {}   # coin -> {swing_val, stype, used_ocl} — cegah re-entry di BOS yang sama
 
 
 # ============================================================
@@ -566,13 +562,8 @@ def _get_actual_exit_price(symbol):
 def check_trailing_sl(coin):
     """
     Dipanggil setiap M5 close.
-
-    Reverse logic:
-    - Bot cek setiap M5 (5 menit). SL bisa kena kapan saja dalam candle.
-    - Saat posisi tutup terdeteksi, query get_closed_pnl untuk harga exit actual
-      (bukan last_price yang hanya mark price dari cek sebelumnya).
-    - Reverse dibuka sebagai market order di harga pasar saat itu.
-    - SL reverse = exit_actual ± dist (sama dengan dist trade asli).
+    Cek apakah posisi sudah tutup. Jika ya, update done_setups dan hapus dari active_positions.
+    Jika masih buka, update last_price dan set trailing stop jika belum dipasang.
     """
     if coin not in active_positions:
         return
@@ -581,59 +572,72 @@ def check_trailing_sl(coin):
     pos = get_open_position(coin)
 
     if pos is None:
-        # Posisi sudah tutup — ambil harga exit actual dari Bybit
-        entry     = p['entry']
-        side      = p['side']
-        dist      = p.get('dist', 0)
-        rev_count = p.get('rev_count', 0)
-
-        # Harga exit actual dari Bybit closed PnL
         actual_exit = _get_actual_exit_price(coin)
-        last_price  = p.get('last_price', entry)
+        exit_str    = f"{actual_exit:.6f}" if actual_exit else "?"
+        entry       = p['entry']
+        side        = p['side']
+        rev_count   = p.get('rev_count', 0)
+        orig_ocl    = p.get('orig_ocl', entry)
 
-        if TRAIL_STOP > 0 and dist > 0 and rev_count < 2:
-            # Gunakan actual_exit jika ada, fallback ke last_price/sl
-            if actual_exit:
-                exit_price = actual_exit
-            else:
-                exit_price = last_price
+        # Detect SL hit: exit at a loss (below entry for Long, above for Short)
+        is_sl = (actual_exit is not None and (
+            (side == 'Buy'  and actual_exit <= entry) or
+            (side == 'Sell' and actual_exit >= entry)
+        ))
 
-            moved      = (exit_price - entry) if side == "Buy" else (entry - exit_price)
-            imm_sl     = moved < -0.9 * dist          # keluar dekat SL awal, belum sempat bergerak
-            trail_hit  = p.get('trail_engaged', False) # pernah capai BE atau lebih
-
-            print(f"📊 {coin}: Posisi tutup | entry:{entry:.6f} exit:{exit_price:.6f} "
-                  f"moved:{moved/dist:.2f}R | imm_sl={imm_sl} trail={trail_hit}")
-
-            if imm_sl or trail_hit:
-                rev_side  = "Sell" if side == "Buy" else "Buy"
-                # SL reverse = jarak dist dari harga exit actual
-                rev_sl    = exit_price - dist if rev_side == "Buy" else exit_price + dist
-                rev_trail = TRAIL_STOP * dist
-                reason    = "imm" if imm_sl else "trail"
-                print(f"🔄 {coin}: Reverse {rev_side} @ market "
-                      f"(exit actual:{exit_price:.6f}) SL:{rev_sl:.6f} (rev#{rev_count+1})")
-
-                order_id = place_market_order(coin, rev_side, exit_price, rev_sl, rev_trail)
-                if order_id:
+        if is_sl and rev_count < 2:
+            rev_side  = 'Sell' if side == 'Buy' else 'Buy'
+            rev_stype = 'Short' if side == 'Buy' else 'Long'
+            rev_dist  = p.get('dist', 0)
+            rev_sl    = (actual_exit + rev_dist) if rev_side == 'Sell' else (actual_exit - rev_dist)
+            rev_trail = TRAIL_STOP * rev_dist
+            print(f"🔄 {coin}: SL hit @ {exit_str} — reverse {rev_stype} (rev#{rev_count+1})")
+            order_id = place_market_order(coin, rev_side, actual_exit, rev_sl, rev_trail)
+            if order_id:
+                time.sleep(1)
+                pos_new = get_open_position(coin)
+                if pos_new:
+                    rev_entry = float(pos_new.get('avgPrice', actual_exit or entry))
                     active_positions[coin] = {
                         'side'          : rev_side,
-                        'entry'         : exit_price,
+                        'entry'         : rev_entry,
                         'sl'            : rev_sl,
-                        'dist'          : dist,
+                        'dist'          : rev_dist,
                         'trail_dist'    : rev_trail,
                         'trail_engaged' : False,
                         'trail_set'     : False,
-                        'last_price'    : exit_price,
-                        'rev_count'     : rev_count + 1,
+                        'last_price'    : rev_entry,
                         'entry_time'    : time.time(),
+                        'swing_val'     : p.get('swing_val'),
+                        'bos_type'      : rev_stype,
+                        'rev_count'     : rev_count + 1,
+                        'orig_ocl'      : orig_ocl,
                     }
-                    return
-
-        pnl_str = f"{actual_exit:.6f}" if actual_exit else "?"
-        print(f"📭 {coin}: Posisi tutup @ {pnl_str}.")
-        done_setups[coin] = (p.get('swing_val'), p.get('bos_type'))
-        del active_positions[coin]
+                    print(f"✅ {coin}: Reverse {rev_stype} entry:{rev_entry:.6f} sl:{rev_sl:.6f}")
+                else:
+                    print(f"⚠️ {coin}: Reverse order placed tapi posisi belum terdeteksi.")
+                    done_setups[coin] = {
+                        'swing_val': p.get('swing_val'),
+                        'stype'    : p.get('bos_type'),
+                        'used_ocl' : orig_ocl,
+                    }
+                    del active_positions[coin]
+            else:
+                print(f"⚠️ {coin}: Gagal open reverse — skip.")
+                done_setups[coin] = {
+                    'swing_val': p.get('swing_val'),
+                    'stype'    : p.get('bos_type'),
+                    'used_ocl' : orig_ocl,
+                }
+                del active_positions[coin]
+        else:
+            print(f"📭 {coin}: Posisi tutup @ {exit_str}.")
+            done_setups[coin] = {
+                'swing_val': p.get('swing_val'),
+                'stype'    : p.get('bos_type'),
+                'used_ocl' : orig_ocl,
+            }
+            del active_positions[coin]
         return
 
     # Posisi masih buka — update last_price dan cek trail_engaged
@@ -877,8 +881,48 @@ def run_bot():
                         print(f"🗑️ {coin}: Tidak ada FVG kuat tersisa.")
                         del pending[coin]; continue
 
+                    # ── WAIT_APPROACH: monitoring harga mendekati FVG, belum pasang order ──
+                    if setup['phase'] == 'WAIT_APPROACH':
+                        curr_price = float(curr_h1['close'])
+                        entry  = setup['entry']
+                        dist   = setup['dist']
+                        thr    = APPROACH_R * dist
+                        approaching = (stype == 'Long'  and curr_price <= entry + thr) or \
+                                      (stype == 'Short' and curr_price >= entry - thr)
+                        if approaching:
+                            active_count = len(active_positions) + sum(
+                                1 for s in pending.values() if s.get('phase') == 'WAIT_FILL')
+                            if active_count >= MAX_CONCURRENT:
+                                print(f"⏸️  {coin}: Harga mendekati tapi slot penuh "
+                                      f"({active_count}/{MAX_CONCURRENT})")
+                            else:
+                                side_order = "Buy" if stype == "Long" else "Sell"
+                                order_id   = place_limit_order(coin, side_order, entry, setup['sl'])
+                                if order_id:
+                                    setup['phase']    = 'WAIT_FILL'
+                                    setup['order_id'] = order_id
+                                    print(f"📍 {coin}: Limit dipasang @ {entry:.6f} "
+                                          f"(harga {curr_price:.6f} dalam {APPROACH_R}R)")
+                        continue
+
                     # ── WAIT_FILL: limit order placed, nunggu fill ──────
                     if setup['phase'] == 'WAIT_FILL':
+                        # Jika harga mundur keluar approach range → cancel, kembali WAIT_APPROACH
+                        curr_price = float(curr_h1['close'])
+                        entry_w = setup['entry']; dist_w = setup['dist']
+                        thr_w   = APPROACH_R * dist_w
+                        price_away = (stype == 'Long'  and curr_price > entry_w + thr_w) or \
+                                     (stype == 'Short' and curr_price < entry_w - thr_w)
+                        if price_away:
+                            oid = setup.get('order_id')
+                            if oid:
+                                cancel_order(coin, oid)
+                            setup['phase'] = 'WAIT_APPROACH'
+                            setup.pop('order_id', None)
+                            print(f"📤 {coin}: Limit dibatalkan (harga {curr_price:.6f} mundur "
+                                  f"> {APPROACH_R}R dari {entry_w:.6f}). Kembali menunggu.")
+                            continue
+
                         pos = get_open_position(coin)
                         if pos:
                             entry_p    = setup['entry']
@@ -912,12 +956,17 @@ def run_bot():
                                 'trail_engaged' : False,
                                 'trail_set'     : True,
                                 'last_price'    : actual_entry,
-                                'rev_count'     : 0,
                                 'entry_time'    : time.time(),
                                 'swing_val'     : setup.get('swing_val'),
                                 'bos_type'      : stype,
+                                'rev_count'     : 0,
+                                'orig_ocl'      : setup.get('orig_ocl', setup.get('entry')),
                             }
-                            done_setups[coin] = (setup.get('swing_val'), stype)
+                            done_setups[coin] = {
+                                'swing_val': setup.get('swing_val'),
+                                'stype'    : stype,
+                                'used_ocl' : setup.get('entry'),
+                            }
                             del pending[coin]
                             print(f"✅ {coin}: Limit filled! Entry:{actual_entry:.6f} "
                                   f"SL:{sl_p:.6f} Trail aktif setelah +1R")
@@ -928,7 +977,11 @@ def run_bot():
                                 # Order sudah hilang (filled+closed dlm 1 candle, atau dibatalkan)
                                 print(f"⚠️ {coin}: Limit order hilang (filled+closed 1 candle "
                                       f"atau dibatalkan). Setup selesai.")
-                                done_setups[coin] = (setup.get('swing_val'), stype)
+                                done_setups[coin] = {
+                                    'swing_val': setup.get('swing_val'),
+                                    'stype'    : stype,
+                                    'used_ocl' : setup.get('entry'),
+                                }
                                 del pending[coin]
                             else:
                                 print(f"⏳ {coin}: Nunggu fill limit @ {setup['entry']:.6f} | "
@@ -1098,11 +1151,6 @@ def run_bot():
                 if existing and existing.get('swing_val') == swing_val and existing.get('type') == stype:
                     continue
 
-                # Skip BOS yang sudah pernah ditradingkan — tunggu swing baru
-                done = done_setups.get(coin)
-                if done and done == (swing_val, stype):
-                    continue
-
                 # Overwrite BOS berbeda: batalkan limit order lama jika ada
                 if existing and existing.get('order_id'):
                     cancel_order(coin, existing['order_id'])
@@ -1111,7 +1159,7 @@ def run_bot():
                 choch_str = f"{choch_level:.6g}" if choch_level else "—"
 
                 if ENTRY_MODE == 'fvg_limit':
-                    # Ambil FVG pertama yang valid — langsung place limit order
+                    # Ambil FVG pertama yang valid
                     chosen_fvg = None
                     for g in gaps:
                         c1_c = float(g.get('c1_close', 0))
@@ -1137,26 +1185,40 @@ def run_bot():
                     if dist < c1_c * 0.002:
                         continue  # SL terlalu dekat entry
 
-                    side_order = "Buy" if stype == "Long" else "Sell"
-                    print(f"\n📊 {coin} | BOS {stype} | FVG Limit @ {c1_c:.6f} | "
-                          f"SL(mid):{c1_mid:.6f} dist:{dist/c1_c*100:.3f}% | "
+                    # OCL flip: BOS sama + OCL sama → entry dibalik (zone sudah ditest)
+                    done = done_setups.get(coin)
+                    stype_eff  = stype
+                    sl_entry   = c1_mid   # default SL = c1_mid
+                    choch_eff  = choch_level
+                    if done and isinstance(done, dict):
+                        if done.get('swing_val') == swing_val and done.get('stype') == stype:
+                            used_ocl = done.get('used_ocl', 0)
+                            if used_ocl > 0 and abs(c1_c - used_ocl) / c1_c < 0.001:
+                                # OCL sama → flip direction
+                                stype_eff = 'Short' if stype == 'Long' else 'Long'
+                                sl_entry  = c1_c + dist if stype_eff == 'Short' else c1_c - dist
+                                choch_eff = None
+                            # else: OCL beda (FVG fresh) → proceed normal
+
+                    choch_str = f"{choch_eff:.6g}" if choch_eff else "—"
+                    print(f"\n📊 {coin} | BOS {stype_eff} | FVG Watch @ {c1_c:.6f} | "
+                          f"SL(mid):{sl_entry:.6f} dist:{dist/c1_c*100:.3f}% | "
                           f"GapPct:{gap_s/c1_c*100:.3f}% | CHOCH:{choch_str}")
 
-                    order_id = place_limit_order(coin, side_order, c1_c, c1_mid)
-                    if order_id:
-                        pending[coin] = {
-                            'type'        : stype,
-                            'phase'       : 'WAIT_FILL',
-                            'order_id'    : order_id,
-                            'entry'       : c1_c,
-                            'sl'          : c1_mid,
-                            'dist'        : dist,
-                            'fvg_list'    : gaps,
-                            'bos_ts'      : bos_ts,
-                            'bos_idx'     : bos_idx,
-                            'swing_val'   : swing_val,
-                            'choch_level' : choch_level,
-                        }
+                    # Simpan sebagai WAIT_APPROACH — order belum dipasang, belum pakai margin
+                    pending[coin] = {
+                        'type'        : stype_eff,
+                        'phase'       : 'WAIT_APPROACH',
+                        'entry'       : c1_c,
+                        'sl'          : sl_entry,
+                        'dist'        : dist,
+                        'orig_ocl'    : c1_c,
+                        'fvg_list'    : gaps,
+                        'bos_ts'      : bos_ts,
+                        'bos_idx'     : bos_idx,
+                        'swing_val'   : swing_val,
+                        'choch_level' : choch_eff,
+                    }
                 else:
                     pending[coin] = {
                         'type'        : stype,
