@@ -76,13 +76,14 @@ session = HTTP(testnet=TESTNET, api_key=API_KEY, api_secret=API_SECRET)
 
 # ── Strategy params (sinkron dengan backtest.py) ─────────────
 SL_MULT       = 6.2     # SL = SL_MULT × gap_size dari entry (fallback)
-TRAIL_STOP    = 0.15    # trailing distance = TRAIL_STOP × dist (tight trail = capture besar)
+TRAIL_STOP    = 0.50    # trailing distance = TRAIL_STOP × dist
 SBR_MODE      = True    # True = SBR entry di C1.close + SL di C1.low, False = OCL entry lama
 ENTRY_MODE    = 'fvg_limit'  # 'fvg_sbr' (market saat touch) | 'fvg_limit' (limit langsung di BOS)
 TOUCH_VOL_MIN = 0.8     # touch candle volume min (× avg 20 M5 candle) — hanya dipakai fvg_sbr
 MAX_GAP_PCT   = 0.006   # max gap_size / entry_price (FVG ≤ 0.60%)
 MAX_CONCURRENT = 3      # maks order limit aktif + posisi bersamaan (margin ×10 ~3 posisi 100%)
 APPROACH_R     = 2.0    # place limit saat harga dalam 2R dari entry
+REQUIRE_BOS    = False  # True = BOS H1 dulu; False = FVG kuat langsung (FVG-only mode)
 
 SYMBOLS = [
     # 27 coin — hapus SOLUSDT, SEIUSDT, TIAUSDT, HBARUSDT (WR rendah / PnL negatif)
@@ -351,6 +352,35 @@ def _get_strong_fvgs(df_h1, stype, bos_idx, choch_level=None):
     return result
 
 
+def _scan_fvg_only(df_h1):
+    """
+    FVG-only mode: scan kedua arah, pilih FVG kuat paling recent (c3_idx terbesar).
+    Tidak butuh BOS — langsung dari H1 data.
+    """
+    best_c3i = -1
+    chosen = None; best_stype = None
+    for s in ['Long', 'Short']:
+        gaps = get_internal_gaps(df_h1, s, len(df_h1) - 1)
+        strong = [g for g in gaps
+                  if g.get('c3_vol', 0) > g.get('vol_max10h', 0) > 0
+                  and g.get('c1_close', 0) > 0]
+        for g in reversed(strong):  # paling recent dulu
+            c1_c = float(g.get('c1_close', 0))
+            c1_l = float(g.get('c1_low',   0))
+            c1_h = float(g.get('c1_high',  0))
+            if c1_c <= 0 or c1_h <= c1_l: continue
+            c1_mid = (c1_h + c1_l) / 2.0
+            if s == 'Long'  and c1_c <= c1_mid: continue
+            if s == 'Short' and c1_c >= c1_mid: continue
+            gap_sz = float(g['top']) - float(g['bottom'])
+            if c1_c > 0 and MAX_GAP_PCT > 0 and gap_sz / c1_c > MAX_GAP_PCT: continue
+            c3i = g.get('c3_idx', 0)
+            if c3i > best_c3i:
+                best_c3i = c3i; chosen = g; best_stype = s
+            break  # reversed → yang pertama lolos sudah paling recent untuk arah ini
+    return chosen, best_stype
+
+
 # ============================================================
 # FUNGSI ORDER
 # ============================================================
@@ -487,6 +517,7 @@ def place_limit_order(symbol, side, entry_p, sl_p):
             category=CATEGORY, symbol=symbol, side=side,
             orderType="Limit", qty=str(qty),
             price=str(entry_r),
+            stopLoss=str(sl_r),
             positionIdx=0,
             timeInForce="GTC"
         )
@@ -675,13 +706,13 @@ def check_trailing_sl(coin):
         side  = p['side']
 
         # Pasang trailing stop via set_trading_stop saat pertama posisi terdeteksi
-        # activePrice = entry + 1.25×dist → trail aktif setelah +1.25R profit (sinkron backtest)
+        # activePrice = entry + 1.0×dist → trail aktif setelah +1.0R profit (sinkron backtest)
         if TRAIL_STOP > 0 and dist > 0 and not p.get('trail_set', False):
             trail_dist = p.get('trail_dist', TRAIL_STOP * dist)
             info       = get_instrument_info(coin)
             tick       = info.get('tick_size', 0.0001)
             trail_r    = round_price(trail_dist, tick)
-            active_p   = round_price(entry + 1.25 * dist if side == "Buy" else entry - 1.25 * dist, tick)
+            active_p   = round_price(entry + 1.0 * dist if side == "Buy" else entry - 1.0 * dist, tick)
             if trail_r > 0 and active_p > 0:
                 try:
                     res_ts = session.set_trading_stop(
@@ -693,7 +724,7 @@ def check_trailing_sl(coin):
                     if res_ts['retCode'] == 0:
                         active_positions[coin]['trail_set'] = True
                         print(f"📍 {coin}: Trailing stop {trail_r} dipasang "
-                              f"(aktif @ {active_p} = entry+1.25R)")
+                              f"(aktif @ {active_p} = entry+1.0R)")
                     else:
                         print(f"⚠️ {coin}: Gagal set trailing stop: "
                               f"{res_ts.get('retMsg','')} (code:{res_ts['retCode']})")
@@ -701,12 +732,12 @@ def check_trailing_sl(coin):
                     print(f"⚠️ {coin}: set_trading_stop error: {e}")
 
         if dist > 0 and not p.get('trail_engaged', False):
-            if side == "Buy"  and curr_price >= entry + 1.25 * dist:
+            if side == "Buy"  and curr_price >= entry + 1.0 * dist:
                 active_positions[coin]['trail_engaged'] = True
-                print(f"✅ {coin}: Trail engaged @ {curr_price:.6f} (BE+ 1.25R)")
-            elif side == "Sell" and curr_price <= entry - 1.25 * dist:
+                print(f"✅ {coin}: Trail engaged @ {curr_price:.6f} (+1.0R)")
+            elif side == "Sell" and curr_price <= entry - 1.0 * dist:
                 active_positions[coin]['trail_engaged'] = True
-                print(f"✅ {coin}: Trail engaged @ {curr_price:.6f} (BE+ 1.25R)")
+                print(f"✅ {coin}: Trail engaged @ {curr_price:.6f} (+1.0R)")
     except Exception:
         pass
 
@@ -870,9 +901,12 @@ def run_bot():
                 if df_h1_live is None:
                     continue
 
-                sh_h1, sl_h1 = find_last_swing_bos(df_h1_live)
-                if not sh_h1 or not sl_h1:
-                    continue
+                if REQUIRE_BOS:
+                    sh_h1, sl_h1 = find_last_swing_bos(df_h1_live)
+                    if not sh_h1 or not sl_h1:
+                        continue
+                else:
+                    sh_h1, sl_h1 = None, None
 
                 closed_h1 = df_h1_live.iloc[-2]
                 curr_h1   = df_h1_live.iloc[-1]
@@ -900,26 +934,60 @@ def run_bot():
                             print(f"🔄 {coin}: CHOCH — swing high {choch_level:.6f} ditembus. Setup batal.")
                             del pending[coin]; continue
 
-                    # Refresh FVG list dengan data H1 terbaru
-                    # Recompute bos_idx dari bos_ts agar tidak drift setiap fetch baru
-                    bos_ts_val = setup.get('bos_ts', 0)
-                    bos_rows   = df_h1_live.index[df_h1_live['ts'] == bos_ts_val]
-                    if len(bos_rows) > 0:
-                        bos_idx = int(bos_rows[0])
-                        pending[coin]['bos_idx'] = bos_idx
-                    if bos_idx < len(df_h1_live):
-                        fresh_gaps = _get_strong_fvgs(df_h1_live, stype, bos_idx, choch_level)
-                        if fresh_gaps:
-                            pending[coin]['fvg_list'] = fresh_gaps
+                    if setup.get('fvg_only'):
+                        # FVG-only: cek apakah ada FVG lebih baru → ganti setup
+                        if setup.get('phase') == 'WAIT_APPROACH':
+                            new_ch, new_st = _scan_fvg_only(df_h1_live)
+                            if new_ch:
+                                new_ocl = float(new_ch.get('c1_close', 0))
+                                old_ocl = setup.get('orig_ocl', 0)
+                                ocl_changed = (old_ocl <= 0 or
+                                               abs(new_ocl - old_ocl) / max(new_ocl, 1e-9) > 0.001 or
+                                               new_st != setup['type'])
+                                if ocl_changed:
+                                    print(f"🔄 {coin}: FVG-only — FVG baru ({new_st} @ {new_ocl:.6f}) "
+                                          f"gantikan lama ({setup['type']} @ {old_ocl:.6f})")
+                                    del pending[coin]
+                                    # Buat pending baru dari FVG ini
+                                    c1_c = new_ocl
+                                    c1_l = float(new_ch.get('c1_low', 0))
+                                    c1_h = float(new_ch.get('c1_high', 0))
+                                    if new_st == 'Long':
+                                        dist_n = 0.76 * max(c1_c - c1_l, 0.0)
+                                        entry_n = c1_c; sl_n = c1_c - dist_n
+                                    else:
+                                        dist_n = 0.76 * max(c1_h - c1_c, 0.0)
+                                        entry_n = c1_c; sl_n = c1_c + dist_n
+                                    if dist_n >= c1_c * 0.002:
+                                        pending[coin] = {
+                                            'type': new_st, 'phase': 'WAIT_APPROACH',
+                                            'entry': entry_n, 'sl': sl_n, 'dist': dist_n,
+                                            'orig_ocl': c1_c, 'choch_level': None,
+                                            'swing_val': None, 'fvg_only': True,
+                                        }
+                                        print(f"   ✅ Setup baru: {new_st} Entry:{entry_n:.6f} "
+                                              f"SL:{sl_n:.6f} dist:{dist_n/c1_c*100:.3f}%")
+                                    continue
                     else:
-                        print(f"⚠️ {coin}: bos_idx {bos_idx} out of range H1 len={len(df_h1_live)}")
+                        # BOS mode: refresh FVG list dari bos_idx
+                        bos_ts_val = setup.get('bos_ts', 0)
+                        bos_rows   = df_h1_live.index[df_h1_live['ts'] == bos_ts_val]
+                        if len(bos_rows) > 0:
+                            bos_idx = int(bos_rows[0])
+                            pending[coin]['bos_idx'] = bos_idx
+                        if bos_idx < len(df_h1_live):
+                            fresh_gaps = _get_strong_fvgs(df_h1_live, stype, bos_idx, choch_level)
+                            if fresh_gaps:
+                                pending[coin]['fvg_list'] = fresh_gaps
+                        else:
+                            print(f"⚠️ {coin}: bos_idx {bos_idx} out of range H1 len={len(df_h1_live)}")
 
-                    fvg_list = pending[coin]['fvg_list']
-                    if not fvg_list:
-                        if setup.get('order_id'):
-                            cancel_order(coin, setup['order_id'])
-                        print(f"🗑️ {coin}: Tidak ada FVG kuat tersisa.")
-                        del pending[coin]; continue
+                        fvg_list = pending[coin]['fvg_list']
+                        if not fvg_list:
+                            if setup.get('order_id'):
+                                cancel_order(coin, setup['order_id'])
+                            print(f"🗑️ {coin}: Tidak ada FVG kuat tersisa.")
+                            del pending[coin]; continue
 
                     # ── WAIT_APPROACH: monitoring harga mendekati FVG, belum pasang order ──
                     if setup['phase'] == 'WAIT_APPROACH':
@@ -1016,18 +1084,27 @@ def run_bot():
                             active_p = round_price(
                                 actual_entry + actual_dist if side_order == "Buy"
                                 else actual_entry - actual_dist, tick)
-                            try:
-                                params = dict(
-                                    category=CATEGORY, symbol=coin,
-                                    stopLoss=str(sl_r),
-                                    positionIdx=0
-                                )
-                                if trail_r > 0 and active_p > 0:
-                                    params['trailingStop'] = str(trail_r)
-                                    params['activePrice']  = str(active_p)
-                                session.set_trading_stop(**params)
-                            except Exception as e:
-                                print(f"⚠️ {coin}: set_trading_stop error: {e}")
+                            for _attempt in range(3):
+                                try:
+                                    params = dict(
+                                        category=CATEGORY, symbol=coin,
+                                        stopLoss=str(sl_r),
+                                        positionIdx=0
+                                    )
+                                    if trail_r > 0 and active_p > 0:
+                                        params['trailingStop'] = str(trail_r)
+                                        params['activePrice']  = str(active_p)
+                                    res_ts = session.set_trading_stop(**params)
+                                    if res_ts.get('retCode', -1) == 0:
+                                        print(f"🛡️  {coin}: SL={sl_r} Trail={trail_r} activePrice={active_p} dipasang")
+                                        break
+                                    else:
+                                        print(f"⚠️ {coin}: set_trading_stop gagal (attempt {_attempt+1}): "
+                                              f"{res_ts.get('retMsg','')} (code:{res_ts.get('retCode')})")
+                                        time.sleep(2)
+                                except Exception as e:
+                                    print(f"⚠️ {coin}: set_trading_stop error (attempt {_attempt+1}): {e}")
+                                    time.sleep(2)
                             active_positions[coin] = {
                                 'side'          : side_order,
                                 'entry'         : actual_entry,
@@ -1244,7 +1321,50 @@ def run_bot():
                                   f"Harga H1: {curr_h1['close']:.6g}")
                     continue
 
-                # ── SCAN BOS H1 BARU ──────────────────────────────────
+                # ── SCAN SETUP BARU ───────────────────────────────────
+                if not REQUIRE_BOS:
+                    # FVG-only: langsung scan FVG kuat tanpa BOS
+                    chosen_fvg, stype = _scan_fvg_only(df_h1_live)
+                    if not chosen_fvg or not stype:
+                        print(f"   {coin}: tidak ada FVG kuat")
+                        continue
+                    c1_c = float(chosen_fvg['c1_close'])
+                    c1_l = float(chosen_fvg['c1_low'])
+                    c1_h = float(chosen_fvg['c1_high'])
+                    if stype == 'Long':
+                        dist = 0.76 * max(c1_c - c1_l, 0.0)
+                        entry_adj = c1_c; sl_entry = c1_c - dist
+                    else:
+                        dist = 0.76 * max(c1_h - c1_c, 0.0)
+                        entry_adj = c1_c; sl_entry = c1_c + dist
+                    if dist < c1_c * 0.002:
+                        print(f"   {coin}: FVG dist terlalu kecil ({dist/c1_c*100:.3f}%)")
+                        continue
+                    existing = pending.get(coin)
+                    old_ocl = existing.get('orig_ocl', 0) if existing else 0
+                    if existing and abs(c1_c - old_ocl) / max(c1_c, 1e-9) < 0.001 and existing.get('type') == stype:
+                        continue  # FVG sama di pending, skip
+                    # Cek done_setups: jangan re-entry di OCL yang baru saja selesai trade
+                    done = done_setups.get(coin)
+                    if done and done.get('stype') == stype:
+                        done_ocl = done.get('used_ocl', 0)
+                        if done_ocl > 0 and abs(c1_c - done_ocl) / max(c1_c, 1e-9) < 0.001:
+                            continue  # OCL sama dengan trade terakhir, skip
+                    if existing and existing.get('order_id'):
+                        cancel_order(coin, existing['order_id'])
+                    pending[coin] = {
+                        'type': stype, 'phase': 'WAIT_APPROACH',
+                        'entry': entry_adj, 'sl': sl_entry, 'dist': dist,
+                        'orig_ocl': c1_c, 'choch_level': None,
+                        'swing_val': None, 'fvg_only': True,
+                    }
+                    gap_s = float(chosen_fvg['top']) - float(chosen_fvg['bottom'])
+                    print(f"\n📊 {coin} | FVG-only {stype} | OCL:{c1_c:.6f} "
+                          f"Entry:{entry_adj:.6f} SL:{sl_entry:.6f} "
+                          f"dist:{dist/c1_c*100:.3f}% | Gap:{gap_s/c1_c*100:.3f}%")
+                    continue
+
+                # BOS mode
                 is_long = False; is_short = False
                 swing_val = None; bos_idx = None
 
@@ -1313,9 +1433,17 @@ def run_bot():
                     c1_c   = float(chosen_fvg['c1_close'])
                     c1_l   = float(chosen_fvg['c1_low'])
                     c1_h   = float(chosen_fvg['c1_high'])
-                    c1_mid = (c1_h + c1_l) / 2.0
                     gap_s  = float(chosen_fvg['top']) - float(chosen_fvg['bottom'])
-                    dist   = abs(c1_c - c1_mid)
+
+                    # Entry di OCL (c1_close), SL di 76% range c1 dari OCL ke ujung
+                    if stype == 'Long':
+                        entry_adj = c1_c
+                        dist      = 0.76 * max(c1_c - c1_l, 0.0)
+                        sl_entry  = c1_c - dist
+                    else:
+                        entry_adj = c1_c
+                        dist      = 0.76 * max(c1_h - c1_c, 0.0)
+                        sl_entry  = c1_c + dist
 
                     if dist < c1_c * 0.002:
                         continue  # SL terlalu dekat entry
@@ -1323,31 +1451,35 @@ def run_bot():
                     # OCL flip: BOS sama + OCL sama → entry dibalik (zone sudah ditest)
                     done = done_setups.get(coin)
                     stype_eff  = stype
-                    sl_entry   = c1_mid   # default SL = c1_mid
                     choch_eff  = choch_level
                     if done and isinstance(done, dict):
                         if done.get('swing_val') == swing_val and done.get('stype') == stype:
                             used_ocl = done.get('used_ocl', 0)
                             if used_ocl > 0 and abs(c1_c - used_ocl) / c1_c < 0.001:
-                                # OCL sama → flip direction
+                                # OCL sama → flip direction (mirror dist di sisi berlawanan)
                                 stype_eff = 'Short' if stype == 'Long' else 'Long'
-                                sl_entry  = c1_c + dist if stype_eff == 'Short' else c1_c - dist
+                                if stype_eff == 'Short':
+                                    entry_adj = c1_c
+                                    sl_entry  = c1_c + dist  # SL di atas OCL untuk Short
+                                else:
+                                    entry_adj = c1_c
+                                    sl_entry  = c1_c - dist  # SL di bawah OCL untuk Long
                                 choch_eff = None
                             # else: OCL beda (FVG fresh) → proceed normal
 
                     choch_str = f"{choch_eff:.6g}" if choch_eff else "—"
-                    print(f"\n📊 {coin} | BOS {stype_eff} | FVG Watch @ {c1_c:.6f} | "
-                          f"SL(mid):{sl_entry:.6f} dist:{dist/c1_c*100:.3f}% | "
-                          f"GapPct:{gap_s/c1_c*100:.3f}% | CHOCH:{choch_str}")
+                    print(f"\n📊 {coin} | BOS {stype_eff} | OCL:{c1_c:.6f} "
+                          f"Entry:{entry_adj:.6f} SL(76%):{sl_entry:.6f} "
+                          f"dist:{dist/c1_c*100:.3f}% | GapPct:{gap_s/c1_c*100:.3f}% | CHOCH:{choch_str}")
 
                     # Simpan sebagai WAIT_APPROACH — order belum dipasang, belum pakai margin
                     pending[coin] = {
                         'type'        : stype_eff,
                         'phase'       : 'WAIT_APPROACH',
-                        'entry'       : c1_c,
+                        'entry'       : entry_adj,
                         'sl'          : sl_entry,
                         'dist'        : dist,
-                        'orig_ocl'    : c1_c,
+                        'orig_ocl'    : c1_c,   # OCL asli (c1_close) untuk flip check
                         'fvg_list'    : gaps,
                         'bos_ts'      : bos_ts,
                         'bos_idx'     : bos_idx,
